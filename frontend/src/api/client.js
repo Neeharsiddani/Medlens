@@ -1,10 +1,32 @@
 /**
  * API client configuration and base fetch wrapper.
+ * In development / localhost: defaults to 'http://localhost:8000'.
+ * In deployed production (e.g. GitHub Pages): defaults to same-origin relative path or window.MEDLENS_API_URL
+ * to prevent browser Mixed Content (HTTPS -> insecure HTTP localhost) security blocking.
  */
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+export function getApiBaseUrl() {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  if (typeof window !== 'undefined') {
+    if (window.MEDLENS_API_URL) {
+      return window.MEDLENS_API_URL;
+    }
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]') {
+      return 'http://localhost:8000';
+    }
+    // Production static hosting fallback: do not target insecure http://localhost:8000
+    return '';
+  }
+  return 'http://localhost:8000';
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 export async function fetchApi(endpoint, options = {}) {
-  const url = `${API_BASE_URL}${endpoint}`;
+  const baseUrl = getApiBaseUrl();
+  const url = `${baseUrl}${endpoint}`;
   
   const headers = {
     Accept: 'application/json',
