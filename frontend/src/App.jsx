@@ -165,9 +165,9 @@ export default function App() {
               Add Patient
             </button>
 
-            <div className="clinician-chip" title="Clinician: General Practice">
-              <div className="clinician-avatar">Dr</div>
-              <span style={{ fontWeight: 500 }}>Dr. Clinician</span>
+            <div className="clinician-chip" title="Clinical Workspace">
+              <div className="clinician-avatar">CW</div>
+              <span style={{ fontWeight: 500 }}>Clinical Workspace</span>
             </div>
           </div>
         </div>

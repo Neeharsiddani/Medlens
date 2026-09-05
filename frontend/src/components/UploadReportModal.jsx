@@ -54,25 +54,17 @@ export default function UploadReportModal({ isOpen, onClose, patients, preselect
 
     setUploading(true);
     setError(null);
-    setUploadStep('Uploading document & computing SHA-256 hash...');
+    setUploadStep('Uploading and processing medical report with structured extraction...');
 
     try {
-      // Simulate stepped feedback for clinical UX clarity
-      setTimeout(() => {
-        setUploadStep('Extracting document & generating structured schema...');
-      }, 1000);
-
       const result = await uploadReport(selectedPatientId, selectedFile, true);
-
-      setUploadStep('Structured extraction complete! Opening review...');
-      setTimeout(() => {
-        setUploading(false);
-        setSelectedFile(null);
-        onClose();
-        if (onSuccess) {
-          onSuccess(result);
-        }
-      }, 700);
+      setUploading(false);
+      setSelectedFile(null);
+      setUploadStep('');
+      onClose();
+      if (onSuccess) {
+        onSuccess(result);
+      }
     } catch (err) {
       setError(err.message || 'Failed to upload and process report.');
       setUploading(false);

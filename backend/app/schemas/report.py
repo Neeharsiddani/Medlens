@@ -195,5 +195,5 @@ class LabResultVerificationUpdate(BaseModel):
     """Payload for human verification, edit, or rejection of a lab result."""
     verification_status: str = Field(..., description="VERIFIED, REJECTED, or UNVERIFIED")
     verified_value: Optional[str] = Field(None, description="Human-edited or confirmed value. Preserves value_raw.")
-    verified_by: Optional[str] = Field("Clinician Reviewer", description="Name/role of reviewer")
+    verified_by: Optional[str] = Field(None, description="Name/role of reviewer if authenticated")
     verification_notes: Optional[str] = Field(None, description="Optional clinician review notes")

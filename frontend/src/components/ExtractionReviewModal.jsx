@@ -92,7 +92,7 @@ export default function ExtractionReviewModal({ reportId, isOpen, onClose, onUpd
       const payload = {
         verification_status: newStatus,
         verified_value: customValue,
-        verified_by: 'Clinician Reviewer',
+        verified_by: null,
         verification_notes: editNotes || undefined,
       };
       await verifyLabResult(report.id, labId, payload);
