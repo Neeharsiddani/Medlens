@@ -393,6 +393,7 @@ class ReportService:
         db: Session,
         skip: int = 0,
         limit: int = 100,
+        patient_id: Optional[int] = None,
         mrn: Optional[str] = None,
         status: Optional[str] = None,
         search: Optional[str] = None,
@@ -408,6 +409,9 @@ class ReportService:
             .join(Patient, LabResult.patient_id == Patient.id)
             .join(MedicalReport, LabResult.report_id == MedicalReport.id)
         )
+
+        if patient_id:
+            query = query.filter(LabResult.patient_id == patient_id)
 
         if mrn and mrn != "ALL":
             query = query.filter(Patient.patient_identifier == mrn.strip())

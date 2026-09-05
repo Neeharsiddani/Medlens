@@ -61,6 +61,7 @@ export async function getGlobalLabResults(params = {}) {
   const query = new URLSearchParams();
   if (params.skip !== undefined) query.append('skip', params.skip);
   if (params.limit !== undefined) query.append('limit', params.limit);
+  if (params.patient_id !== undefined) query.append('patient_id', params.patient_id);
   if (params.mrn && params.mrn !== 'ALL') query.append('mrn', params.mrn);
   if (params.status && params.status !== 'ALL') query.append('status', params.status);
   if (params.search) query.append('search', params.search);

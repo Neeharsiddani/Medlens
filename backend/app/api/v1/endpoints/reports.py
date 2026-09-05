@@ -106,14 +106,15 @@ def list_global_reports(
 )
 def list_global_lab_results(
     skip: int = Query(0, ge=0, description="Offset for pagination"),
-    limit: int = Query(100, ge=1, le=200, description="Page limit"),
+    limit: int = Query(100, ge=1, le=500, description="Page limit"),
+    patient_id: Optional[int] = Query(None, description="Filter by patient database ID"),
     mrn: Optional[str] = Query(None, description="Filter by patient MRN"),
     status: Optional[str] = Query(None, description="Filter by classification status (LOW, NORMAL, HIGH, etc.)"),
     search: Optional[str] = Query(None, description="Search by test name, patient name, or filename"),
     db: Session = Depends(get_db),
 ) -> GlobalLabResultListResponse:
     labs, total = ReportService.get_global_lab_results(
-        db=db, skip=skip, limit=limit, mrn=mrn, status=status, search=search
+        db=db, skip=skip, limit=limit, patient_id=patient_id, mrn=mrn, status=status, search=search
     )
     return GlobalLabResultListResponse(total=total, labs=labs)
 

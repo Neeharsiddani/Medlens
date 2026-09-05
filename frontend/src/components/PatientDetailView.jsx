@@ -21,7 +21,7 @@ import {
   Printer,
 } from 'lucide-react';
 import { getPatientById, deletePatient } from '../api/patients';
-import { listPatientReports, getReportExtraction } from '../api/reports';
+import { listPatientReports, getReportExtraction, getGlobalLabResults } from '../api/reports';
 import ExtractionReviewModal from './ExtractionReviewModal';
 import PatientSummaryCard from './PatientSummaryCard';
 
@@ -111,25 +111,19 @@ export default function PatientDetailView({ patientId, onBack, onEdit, onOpenUpl
   const loadReports = async (pid) => {
     setLoadingReports(true);
     try {
-      const res = await listPatientReports(pid);
+      const [res, labData] = await Promise.all([
+        listPatientReports(pid),
+        getGlobalLabResults({ patient_id: pid, limit: 500 }).catch(() => ({ labs: [] })),
+      ]);
       const repList = res.reports || [];
       setReports(repList);
-
-      const labDetails = await Promise.all(
-        repList.map(async (rep) => {
-          try {
-            const detail = await getReportExtraction(rep.id);
-            return (detail.lab_results || []).map((lab) => ({
-              ...lab,
-              reportFilename: rep.original_filename,
-              reportDate: rep.report_date,
-            }));
-          } catch {
-            return [];
-          }
-        })
+      setAllLabs(
+        (labData.labs || []).map((lab) => ({
+          ...lab,
+          reportFilename: lab.report_filename,
+          reportDate: lab.report_date,
+        }))
       );
-      setAllLabs(labDetails.flat());
     } catch (err) {
       setError(err.message || 'Failed to load patient reports.');
     } finally {

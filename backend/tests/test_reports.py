@@ -664,3 +664,15 @@ def test_verify_lab_result_mismatched_report_id_returns_404(sample_patient):
     detail = res_mismatch.json()["detail"]
     assert f"not found on report {rep_b_id}" in detail
 
+
+def test_global_lab_results_filtering_by_patient_id(client, sample_patient):
+    """Verify list_global_lab_results can filter accurately by patient_id without N+1 requests."""
+    res = client.get(f"/api/v1/reports/lab-results?patient_id={sample_patient}")
+    assert res.status_code == 200
+    data = res.json()
+    assert "total" in data
+    assert "labs" in data
+    for lab in data["labs"]:
+        assert lab["patient_id"] == sample_patient
+
+
