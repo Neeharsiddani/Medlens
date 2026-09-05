@@ -86,6 +86,35 @@ export default function ExtractionReviewModal({ reportId, isOpen, onClose, onUpd
     }
   };
 
+  const getExtractionMethodBadge = (method, model, procStatus) => {
+    if (method === 'GEMINI_AI') {
+      return {
+        label: `Gemini AI · ${model || 'gemini-2.5-flash'}`,
+        style: { backgroundColor: '#f5f3ff', borderColor: '#ddd6fe', color: '#6d28d9', fontWeight: 600 },
+        dotColor: '#7c3aed',
+      };
+    }
+    if (method === 'LOCAL_DETERMINISTIC') {
+      return {
+        label: 'Deterministic Local Parser · Non-AI',
+        style: { backgroundColor: '#f0f9ff', borderColor: '#bae6fd', color: '#0369a1', fontWeight: 600 },
+        dotColor: '#0284c7',
+      };
+    }
+    if (method === 'NOT_AVAILABLE' || procStatus === 'FAILED') {
+      return {
+        label: 'AI Extraction Unavailable',
+        style: { backgroundColor: '#fff1f2', borderColor: '#fecdd3', color: '#be123c', fontWeight: 600 },
+        dotColor: '#e11d48',
+      };
+    }
+    return {
+      label: 'REPORT_EXTRACTED',
+      style: { backgroundColor: '#f8fafc', borderColor: '#e2e8f0', color: '#475569' },
+      dotColor: '#64748b',
+    };
+  };
+
   const handleVerifyLab = async (labId, newStatus, customValue = null) => {
     setVerifying(true);
     try {
@@ -324,12 +353,13 @@ export default function ExtractionReviewModal({ reportId, isOpen, onClose, onUpd
                   </div>
                 )}
 
-                {/* SHA-256 Hash Display */}
+                {/* SHA-256 Hash & Extraction Method Display */}
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.5rem',
+                    gap: '0.6rem',
+                    flexWrap: 'wrap',
                     fontSize: '0.75rem',
                     color: 'var(--text-muted)',
                     fontFamily: 'var(--font-mono)',
@@ -340,11 +370,28 @@ export default function ExtractionReviewModal({ reportId, isOpen, onClose, onUpd
                     width: 'fit-content',
                   }}
                 >
-                  <Hash size={13} />
-                  <span>SHA-256: {report.document_hash}</span>
-                  <span className="provenance-tag" style={{ marginLeft: '0.5rem' }}>
-                    <span className="provenance-dot"></span> REPORT_EXTRACTED
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Hash size={13} />
+                    <span>SHA-256: {report.document_hash}</span>
+                  </div>
+                  {(() => {
+                    const badge = getExtractionMethodBadge(report.extraction_method, report.extraction_model, report.processing_status);
+                    return (
+                      <span
+                        className="provenance-tag"
+                        style={{
+                          marginLeft: '0.25rem',
+                          ...badge.style,
+                          fontSize: '0.72rem',
+                          padding: '0.2rem 0.5rem',
+                        }}
+                        title={`Extraction method: ${badge.label}`}
+                      >
+                        <span className="provenance-dot" style={{ backgroundColor: badge.dotColor }}></span>
+                        {badge.label}
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -466,18 +513,52 @@ export default function ExtractionReviewModal({ reportId, isOpen, onClose, onUpd
                                 </button>
                               </td>
                               <td>
-                                <span
-                                  className={`status-badge ${
-                                    lab.verification_status === 'VERIFIED'
-                                      ? 'success'
-                                      : lab.verification_status === 'REJECTED'
-                                      ? 'danger'
-                                      : 'neutral'
-                                  }`}
-                                  style={{ fontSize: '0.72rem' }}
-                                >
-                                  {lab.verification_status}
-                                </span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
+                                  <span
+                                    className={`status-badge ${
+                                      lab.verification_status === 'VERIFIED'
+                                        ? 'success'
+                                        : lab.verification_status === 'REJECTED'
+                                        ? 'danger'
+                                        : 'neutral'
+                                    }`}
+                                    style={{ fontSize: '0.72rem' }}
+                                  >
+                                    {lab.verification_status}
+                                  </span>
+                                  {lab.provenance_tag === 'USER_VERIFIED' ? (
+                                    <span
+                                      style={{
+                                        fontSize: '0.68rem',
+                                        padding: '0.1rem 0.35rem',
+                                        borderRadius: '3px',
+                                        backgroundColor: '#f0fdf4',
+                                        color: '#15803d',
+                                        border: '1px solid #bbf7d0',
+                                        fontWeight: 600,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                      }}
+                                      title={lab.original_provenance ? `Original source: ${lab.original_provenance}` : 'Verified by user'}
+                                    >
+                                      USER_VERIFIED
+                                    </span>
+                                  ) : (
+                                    <span
+                                      style={{
+                                        fontSize: '0.68rem',
+                                        padding: '0.1rem 0.35rem',
+                                        borderRadius: '3px',
+                                        backgroundColor: '#f8fafc',
+                                        color: '#64748b',
+                                        border: '1px solid #e2e8f0',
+                                        fontWeight: 500,
+                                      }}
+                                    >
+                                      {lab.provenance_tag || 'REPORT_EXTRACTED'}
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td style={{ textAlign: 'right' }}>
                                 {isEditing ? (

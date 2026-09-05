@@ -271,18 +271,52 @@ export default function LabResultsView({ patients }) {
                       </div>
                     </td>
                     <td>
-                      <span
-                        className={`status-badge ${
-                          lab.verification_status === 'VERIFIED'
-                            ? 'success'
-                            : lab.verification_status === 'REJECTED'
-                            ? 'danger'
-                            : 'neutral'
-                        }`}
-                        style={{ fontSize: '0.72rem' }}
-                      >
-                        {lab.verification_status}
-                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
+                        <span
+                          className={`status-badge ${
+                            lab.verification_status === 'VERIFIED'
+                              ? 'success'
+                              : lab.verification_status === 'REJECTED'
+                              ? 'danger'
+                              : 'neutral'
+                          }`}
+                          style={{ fontSize: '0.72rem' }}
+                        >
+                          {lab.verification_status}
+                        </span>
+                        {lab.provenance_tag === 'USER_VERIFIED' ? (
+                          <span
+                            style={{
+                              fontSize: '0.68rem',
+                              padding: '0.1rem 0.35rem',
+                              borderRadius: '3px',
+                              backgroundColor: '#f0fdf4',
+                              color: '#15803d',
+                              border: '1px solid #bbf7d0',
+                              fontWeight: 600,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                            }}
+                            title={lab.original_provenance ? `Original source: ${lab.original_provenance}` : 'Verified by user'}
+                          >
+                            USER_VERIFIED
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: '0.68rem',
+                              padding: '0.1rem 0.35rem',
+                              borderRadius: '3px',
+                              backgroundColor: '#f8fafc',
+                              color: '#64748b',
+                              border: '1px solid #e2e8f0',
+                              fontWeight: 500,
+                            }}
+                          >
+                            {lab.provenance_tag || 'REPORT_EXTRACTED'}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <button

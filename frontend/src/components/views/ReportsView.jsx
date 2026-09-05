@@ -162,9 +162,49 @@ export default function ReportsView({ onOpenUpload, patients }) {
                   borderTop: '1px solid var(--border-subtle)',
                 }}
               >
-                <span className="provenance-tag">
-                  <span className="provenance-dot"></span> REPORT_EXTRACTED
-                </span>
+                {(() => {
+                  if (rep.extraction_method === 'GEMINI_AI') {
+                    return (
+                      <span
+                        className="provenance-tag"
+                        style={{ backgroundColor: '#f5f3ff', borderColor: '#ddd6fe', color: '#6d28d9', fontWeight: 600, fontSize: '0.72rem' }}
+                        title={`Gemini AI · ${rep.extraction_model || 'gemini-2.5-flash'}`}
+                      >
+                        <span className="provenance-dot" style={{ backgroundColor: '#7c3aed' }}></span>
+                        {`Gemini AI · ${rep.extraction_model || 'gemini-2.5-flash'}`}
+                      </span>
+                    );
+                  }
+                  if (rep.extraction_method === 'LOCAL_DETERMINISTIC') {
+                    return (
+                      <span
+                        className="provenance-tag"
+                        style={{ backgroundColor: '#f0f9ff', borderColor: '#bae6fd', color: '#0369a1', fontWeight: 600, fontSize: '0.72rem' }}
+                        title="Deterministic Local Parser — Non-AI"
+                      >
+                        <span className="provenance-dot" style={{ backgroundColor: '#0284c7' }}></span>
+                        Deterministic Local Parser · Non-AI
+                      </span>
+                    );
+                  }
+                  if (rep.extraction_method === 'NOT_AVAILABLE' || rep.processing_status === 'FAILED') {
+                    return (
+                      <span
+                        className="provenance-tag"
+                        style={{ backgroundColor: '#fff1f2', borderColor: '#fecdd3', color: '#be123c', fontWeight: 600, fontSize: '0.72rem' }}
+                        title="AI Extraction Unavailable"
+                      >
+                        <span className="provenance-dot" style={{ backgroundColor: '#e11d48' }}></span>
+                        AI Extraction Unavailable
+                      </span>
+                    );
+                  }
+                  return (
+                    <span className="provenance-tag" style={{ fontSize: '0.72rem' }}>
+                      <span className="provenance-dot"></span> REPORT_EXTRACTED
+                    </span>
+                  );
+                })()}
 
                 <button
                   className="btn btn-primary btn-sm"

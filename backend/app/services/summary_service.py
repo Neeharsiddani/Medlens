@@ -75,40 +75,67 @@ class PatientSummaryService:
             .all()
         )
 
+        reports_data = []
         all_labs = []
         all_obs = []
         all_rep_meds = []
 
         for rep in reports:
+            reports_data.append({
+                "id": rep.id,
+                "report_type": rep.report_type,
+                "facility_name": rep.facility_name,
+                "physician_name": rep.physician_name,
+                "report_date": str(rep.report_date) if rep.report_date else None,
+                "extraction_method": rep.extraction_method,
+                "document_hash": rep.document_hash,
+                "processing_status": rep.processing_status,
+            })
             for lab in rep.lab_results:
                 all_labs.append({
+                    "id": lab.id,
+                    "report_id": lab.report_id,
                     "test_name": lab.test_name,
                     "value_raw": lab.value_raw,
+                    "value_numeric": lab.value_numeric,
                     "verified_value": lab.verified_value,
                     "display_value": lab.verified_value or lab.value_raw,
                     "unit": lab.unit,
                     "reference_range": lab.reference_range_raw,
+                    "reference_range_raw": lab.reference_range_raw,
                     "status": lab.verified_classification or lab.reference_range_status,
+                    "reference_range_status": lab.reference_range_status,
+                    "verified_classification": lab.verified_classification,
                     "verification_status": lab.verification_status,
+                    "provenance_tag": lab.provenance_tag,
                     "report_date": str(lab.report_date) if lab.report_date else None,
                     "observation": lab.observation,
                 })
             for obs in rep.observations:
                 all_obs.append({
+                    "id": obs.id,
+                    "report_id": obs.report_id,
                     "category": obs.category,
                     "description": obs.description,
                     "verification_status": obs.verification_status,
+                    "provenance_tag": obs.provenance_tag,
                 })
             for med in rep.medications:
                 all_rep_meds.append({
+                    "id": med.id,
+                    "report_id": med.report_id,
                     "medication_name": med.medication_name,
                     "dosage": med.dosage,
                     "frequency": med.frequency,
+                    "route": med.route,
                     "instructions": med.instructions,
+                    "verification_status": med.verification_status,
+                    "provenance_tag": med.provenance_tag,
                 })
 
         return ControlledSummaryInput(
             patient_identifier=patient.patient_identifier,
+            full_name=patient.full_name,
             age=patient.age,
             sex=patient.sex,
             symptoms=patient.symptoms or [],
@@ -116,6 +143,7 @@ class PatientSummaryService:
             allergies=patient.allergies or [],
             medications=patient.medications or [],
             other_information=patient.other_information,
+            reports=reports_data,
             laboratory_results=all_labs,
             observations=all_obs,
             report_medications=all_rep_meds,
@@ -126,30 +154,42 @@ class PatientSummaryService:
         """
         Compute a deterministic, stable SHA-256 fingerprint of the structured clinical record.
         Includes patient demographics, symptoms, conditions, allergies, medications,
-        laboratory results, range statuses, and clinician verification data.
+        reports, laboratory results, range statuses, and clinician verification data.
         """
         data = controlled_input.model_dump()
         # Sort lists of dicts by primary clinical identifiers to guarantee deterministic ordering
+        if "reports" in data and isinstance(data["reports"], list):
+            data["reports"] = sorted(
+                data["reports"],
+                key=lambda x: (
+                    str(x.get("id") or ""),
+                    x.get("report_date") or "",
+                    x.get("document_hash") or "",
+                ),
+            )
         if "laboratory_results" in data and isinstance(data["laboratory_results"], list):
             data["laboratory_results"] = sorted(
                 data["laboratory_results"],
                 key=lambda x: (
+                    str(x.get("id") or ""),
+                    str(x.get("report_id") or ""),
                     x.get("test_name") or "",
                     x.get("report_date") or "",
                     str(x.get("display_value") or ""),
                     str(x.get("status") or ""),
                     str(x.get("verification_status") or ""),
+                    str(x.get("provenance_tag") or ""),
                 ),
             )
         if "observations" in data and isinstance(data["observations"], list):
             data["observations"] = sorted(
                 data["observations"],
-                key=lambda x: (x.get("category") or "", x.get("description") or ""),
+                key=lambda x: (str(x.get("id") or ""), x.get("category") or "", x.get("description") or ""),
             )
         if "report_medications" in data and isinstance(data["report_medications"], list):
             data["report_medications"] = sorted(
                 data["report_medications"],
-                key=lambda x: (x.get("medication_name") or "", x.get("dosage") or ""),
+                key=lambda x: (str(x.get("id") or ""), x.get("medication_name") or "", x.get("dosage") or ""),
             )
 
         canonical_json = json.dumps(data, sort_keys=True, separators=(",", ":"))

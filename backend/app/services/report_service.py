@@ -15,6 +15,7 @@ from app.schemas.report import (
 from app.services.document_service import DocumentService
 from app.services.gemini_service import GeminiExtractionService
 from app.services.reference_range_engine import ReferenceRangeEngine
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ class ReportService:
     async def process_report(db: Session, report_id: int) -> MedicalReport:
         """
         Execute report processing pipeline:
-        Extract text/image -> controlled Gemini call -> Pydantic validation -> DB persistence -> REVIEW_REQUIRED.
+        Extract text/image -> controlled Gemini call or explicit deterministic parser -> Pydantic validation -> DB persistence -> REVIEW_REQUIRED.
         """
         report = db.query(MedicalReport).filter(MedicalReport.id == report_id).first()
         if not report:
@@ -75,6 +76,13 @@ class ReportService:
         report.processing_status = "PROCESSING"
         db.commit()
 
+        is_gemini_configured = bool(
+            settings.GEMINI_API_KEY
+            and settings.GEMINI_API_KEY.strip()
+            and settings.GEMINI_API_KEY != "test_key"
+        )
+        has_mock_override = GeminiExtractionService._mock_response_override is not None
+
         try:
             extraction: ReportExtraction
             if report.mime_type == "application/pdf":
@@ -86,22 +94,56 @@ class ReportService:
                     full_text, is_scanned = "", True
 
                 if is_scanned or not full_text.strip():
-                    # Scanned or image-based PDF -> use Gemini multimodal document capabilities
+                    # Scanned or image-based PDF -> requires Gemini multimodal document capabilities
+                    if not is_gemini_configured and not has_mock_override:
+                        report.processing_status = "FAILED"
+                        report.extraction_status = "FAILED"
+                        report.extraction_method = "NOT_AVAILABLE"
+                        report.extraction_model = None
+                        report.extraction_error = "AI extraction is unavailable. Configure Gemini API access and retry."
+                        db.commit()
+                        raise HTTPException(
+                            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail="AI extraction is unavailable. Configure Gemini API access and retry.",
+                        )
                     file_bytes = DocumentService.get_file_bytes(report.storage_path)
                     extraction = await GeminiExtractionService.extract_structured_data(
                         file_bytes=file_bytes, mime_type="application/pdf"
                     )
+                    report.extraction_method = "GEMINI_AI"
+                    report.extraction_model = settings.GEMINI_MODEL
                 else:
-                    # Clean text PDF -> provide structured text with page markers
-                    extraction = await GeminiExtractionService.extract_structured_data(
-                        text_content=full_text
-                    )
+                    # Clean digital text PDF -> provide structured text with page markers
+                    if is_gemini_configured or has_mock_override:
+                        extraction = await GeminiExtractionService.extract_structured_data(
+                            text_content=full_text
+                        )
+                        report.extraction_method = "GEMINI_AI"
+                        report.extraction_model = settings.GEMINI_MODEL
+                    else:
+                        # Genuine deterministic local parser
+                        extraction = GeminiExtractionService.parse_text_deterministically(full_text)
+                        report.extraction_method = "LOCAL_DETERMINISTIC"
+                        report.extraction_model = None
             else:
                 # Image formats (PNG, JPG, JPEG) -> multimodal Gemini
+                if not is_gemini_configured and not has_mock_override:
+                    report.processing_status = "FAILED"
+                    report.extraction_status = "FAILED"
+                    report.extraction_method = "NOT_AVAILABLE"
+                    report.extraction_model = None
+                    report.extraction_error = "AI extraction is unavailable. Configure Gemini API access and retry."
+                    db.commit()
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail="AI extraction is unavailable. Configure Gemini API access and retry.",
+                    )
                 file_bytes = DocumentService.get_file_bytes(report.storage_path)
                 extraction = await GeminiExtractionService.extract_structured_data(
                     file_bytes=file_bytes, mime_type=report.mime_type
                 )
+                report.extraction_method = "GEMINI_AI"
+                report.extraction_model = settings.GEMINI_MODEL
 
             # Persist extracted results in atomic transaction
             ReportService._persist_extraction_results(db, report, extraction)
@@ -115,11 +157,15 @@ class ReportService:
 
             return report
 
+        except HTTPException:
+            raise
         except Exception as e:
             db.rollback()
             logger.error(f"Error processing report {report_id}: {str(e)}")
             report.processing_status = "FAILED"
             report.extraction_status = "FAILED"
+            report.extraction_method = "NOT_AVAILABLE"
+            report.extraction_model = None
             report.extraction_error = str(e)
             db.commit()
             raise HTTPException(
@@ -179,6 +225,7 @@ class ReportService:
                 report_date=report.report_date,
                 source_page=lab.source_page,
                 source_text=lab.source_text,
+                original_provenance="REPORT_EXTRACTED",
                 provenance_tag="REPORT_EXTRACTED",
                 verification_status="UNVERIFIED",
                 reference_range_status=classification.status.value,
@@ -294,6 +341,11 @@ class ReportService:
             )
 
         result.verification_status = status_val
+        if status_val == "VERIFIED":
+            result.provenance_tag = "USER_VERIFIED"
+        elif status_val == "UNVERIFIED":
+            result.provenance_tag = "REPORT_EXTRACTED"
+
         if update_data.verified_value is not None:
             result.verified_value = update_data.verified_value
             # Deterministically calculate separate verified classification (Phase 4)

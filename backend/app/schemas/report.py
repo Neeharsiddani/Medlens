@@ -104,6 +104,7 @@ class LabResultResponse(BaseSchema):
     source_page: Optional[int] = None
     source_text: Optional[str] = None
     provenance_tag: str
+    original_provenance: str = "REPORT_EXTRACTED"
     verification_status: str
     verified_value: Optional[str] = None
     verified_by: Optional[str] = None
@@ -164,6 +165,8 @@ class MedicalReportResponse(BaseSchema):
     physician_name: Optional[str] = None
     processing_status: str
     extraction_status: str
+    extraction_method: Optional[str] = None
+    extraction_model: Optional[str] = None
     extraction_error: Optional[str] = None
     provenance_tag: str
     uploaded_at: datetime

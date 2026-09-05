@@ -373,3 +373,82 @@ def test_regeneration_stores_new_fingerprint_and_preserves_history(populated_pat
     assert history[0].source_fingerprint == fp1
     assert history[1].id == sum2["id"]
     assert history[1].source_fingerprint == fp2
+
+
+def test_staleness_detection_lab_value_change(populated_patient):
+    """Condition 3: Summary becomes stale (is_stale=True) when a raw lab value changes."""
+    PatientSummaryService.set_mock_response(SAMPLE_VALID_GEMINI_SUMMARY)
+
+    post_res = client.post(f"/api/v1/patients/{populated_patient}/summary")
+    assert post_res.status_code == 201
+    assert post_res.json()["is_stale"] is False
+
+    # Modify raw value of Hemoglobin directly in DB
+    db = SessionLocal()
+    hgb = db.query(LabResult).filter(LabResult.patient_id == populated_patient, LabResult.test_name == "Hemoglobin").first()
+    hgb.value_raw = "8.9"
+    hgb.value_numeric = 8.9
+    db.commit()
+    db.close()
+
+    get_res = client.get(f"/api/v1/patients/{populated_patient}/summary")
+    assert get_res.status_code == 200
+    assert get_res.json()["is_stale"] is True
+
+
+def test_staleness_detection_new_report_alone(populated_patient):
+    """Condition 5: Summary becomes stale (is_stale=True) when a new report is added, even before extractions."""
+    PatientSummaryService.set_mock_response(SAMPLE_VALID_GEMINI_SUMMARY)
+
+    post_res = client.post(f"/api/v1/patients/{populated_patient}/summary")
+    assert post_res.status_code == 201
+
+    # Add a new report record with zero labs
+    db = SessionLocal()
+    new_rep = MedicalReport(
+        patient_id=populated_patient,
+        original_filename="New_Consult.pdf",
+        stored_filename="fake_consult.pdf",
+        storage_path="uploads/fake_consult.pdf",
+        mime_type="application/pdf",
+        file_size=2048,
+        document_hash="c" * 64,
+        report_type="CONSULTATION_NOTE",
+        processing_status="UPLOADED",
+        extraction_status="PENDING",
+        provenance_tag="REPORT_EXTRACTED",
+    )
+    db.add(new_rep)
+    db.commit()
+    db.close()
+
+    get_res = client.get(f"/api/v1/patients/{populated_patient}/summary")
+    assert get_res.status_code == 200
+    assert get_res.json()["is_stale"] is True
+
+
+def test_staleness_detection_report_metadata_change(populated_patient):
+    """Condition 7: Summary becomes stale (is_stale=True) when report metadata (e.g. facility or date) changes."""
+    PatientSummaryService.set_mock_response(SAMPLE_VALID_GEMINI_SUMMARY)
+
+    post_res = client.post(f"/api/v1/patients/{populated_patient}/summary")
+    assert post_res.status_code == 201
+
+    # Update report facility name
+    db = SessionLocal()
+    rep = db.query(MedicalReport).filter(MedicalReport.patient_id == populated_patient).first()
+    rep.facility_name = "St. Jude Clinical Laboratories"
+    db.commit()
+    db.close()
+
+    get_res = client.get(f"/api/v1/patients/{populated_patient}/summary")
+    assert get_res.status_code == 200
+    assert get_res.json()["is_stale"] is True
+
+
+def test_summary_mock_isolation():
+    """Requirement 8: Ensure mock override starts None and production paths do not expose or enable mocks."""
+    assert PatientSummaryService._mock_response_override is None
+    # No endpoint exists to alter _mock_response_override
+    res = client.get("/api/v1/reports")
+    assert PatientSummaryService._mock_response_override is None

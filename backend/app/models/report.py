@@ -38,7 +38,12 @@ class MedicalReport(Base):
     # extraction_status: PENDING, COMPLETED, FAILED
     extraction_status = Column(String(50), nullable=False, default="PENDING")
     extraction_error = Column(Text, nullable=True)
-    
+
+    # Extraction method & model attribution (Hardening Pass 2)
+    # extraction_method: GEMINI_AI, LOCAL_DETERMINISTIC, NOT_AVAILABLE
+    extraction_method = Column(String(50), nullable=True)
+    extraction_model = Column(String(100), nullable=True)
+
     # Provenance tracking
     provenance_tag = Column(String(50), nullable=False, default="REPORT_EXTRACTED")
     
@@ -95,6 +100,7 @@ class LabResult(Base):
     # Provenance & Source Traceability
     source_page = Column(Integer, nullable=True)     # Page number in original document if known
     source_text = Column(Text, nullable=True)        # Exact line or excerpt from source
+    original_provenance = Column(String(50), nullable=False, default="REPORT_EXTRACTED")
     provenance_tag = Column(String(50), nullable=False, default="REPORT_EXTRACTED")
     
     # Human Review & Verification (starts UNVERIFIED)

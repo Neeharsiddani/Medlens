@@ -98,8 +98,8 @@ class GeminiExtractionService:
         mime_type: Optional[str] = None,
     ) -> ReportExtraction:
         """
-        Execute controlled extraction via Gemini or fallback deterministic mock if unconfigured/testing.
-        Validates output strictly through Pydantic ReportExtraction.
+        Execute controlled extraction via Gemini with strict schema protection.
+        Requires active GEMINI_API_KEY (or explicit unit test mock override).
         """
         # 1. Check for test mock override
         if cls._mock_response_override is not None:
@@ -108,8 +108,8 @@ class GeminiExtractionService:
         # 2. Check if live GEMINI_API_KEY is available
         api_key = settings.GEMINI_API_KEY
         if not api_key or api_key.strip() == "" or api_key == "test_key":
-            logger.info("No active GEMINI_API_KEY configured; running deterministic offline extraction.")
-            return cls._fallback_offline_extraction(text_content, mime_type)
+            logger.warning("Gemini extraction requested but GEMINI_API_KEY is not configured.")
+            raise RuntimeError("AI extraction is unavailable. Configure Gemini API access and retry.")
 
         # 3. Call live Gemini API
         endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.GEMINI_MODEL}:generateContent?key={api_key}"
@@ -147,8 +147,19 @@ class GeminiExtractionService:
                 response.raise_for_status()
                 data = response.json()
             except httpx.HTTPStatusError as e:
-                logger.error(f"Gemini API error {e.response.status_code}: {e.response.text}")
-                raise RuntimeError(f"Gemini API returned error {e.response.status_code}: {e.response.text}")
+                status_code = e.response.status_code
+                if status_code == 429:
+                    logger.error(f"Gemini API rate limited (429): {e.response.text}")
+                    raise RuntimeError("Gemini API rate limit exceeded (HTTP 429). Please retry shortly.")
+                elif status_code in {500, 502, 503, 504}:
+                    logger.error(f"Gemini API server error ({status_code}): {e.response.text}")
+                    raise RuntimeError(f"Gemini API server error (HTTP {status_code}). Please retry.")
+                else:
+                    logger.error(f"Gemini API error {status_code}: {e.response.text}")
+                    raise RuntimeError(f"Gemini API returned error {status_code}: {e.response.text}")
+            except httpx.TimeoutException as e:
+                logger.error(f"Gemini request timed out: {str(e)}")
+                raise RuntimeError("Gemini API request timed out after 60 seconds.")
             except Exception as e:
                 logger.error(f"Gemini request failed: {str(e)}")
                 raise RuntimeError(f"Failed to communicate with Gemini API: {str(e)}")
@@ -160,6 +171,10 @@ class GeminiExtractionService:
                 parts = candidates[0]["content"].get("parts", [])
                 if parts and "text" in parts[0]:
                     raw_text = parts[0]["text"]
+                else:
+                    raise ValueError("No text content in Gemini response parts.")
+            else:
+                raise ValueError("No candidates returned in Gemini response.")
         except Exception as e:
             raise ValueError(f"Malformed Gemini API response envelope: {str(e)}")
 
@@ -188,8 +203,17 @@ class GeminiExtractionService:
         return ReportExtraction.model_validate(parsed)
 
     @classmethod
+    def parse_text_deterministically(cls, text_content: str) -> ReportExtraction:
+        """
+        Deterministic parser for text documents when live Gemini is not configured.
+        Parses laboratory patterns safely and honestly from document text without hallucination.
+        Never labeled as AI_GENERATED.
+        """
+        return cls._fallback_offline_extraction(text_content, None)
+
+    @classmethod
     def _fallback_offline_extraction(
-        cls, text_content: Optional[str], mime_type: Optional[str]
+        cls, text_content: Optional[str], mime_type: Optional[str] = None
     ) -> ReportExtraction:
         """
         Deterministic parser for offline runs and test environments when live Gemini is not configured.

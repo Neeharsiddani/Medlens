@@ -403,4 +403,171 @@ def test_clinician_verification_workflow(sample_patient):
     # Verified classification is evaluated on 5.7 (also HIGH on 3.5-5.0)
     assert verify_data["verified_classification"] == "HIGH"
     assert verify_data["current_classification"] == "HIGH"
-    assert verify_data["provenance_tag"] == "REPORT_EXTRACTED"
+    # Provenance gap fix: Verified item has USER_VERIFIED provenance, while original extracted source value retains REPORT_EXTRACTED
+    assert verify_data["provenance_tag"] == "USER_VERIFIED"
+    assert verify_data["original_provenance"] == "REPORT_EXTRACTED"
+
+
+def test_gemini_unavailable_scanned_pdf_fails_honestly(sample_patient):
+    """Requirement 1: When Gemini is unavailable, scanned PDF fails honestly instead of silent 0-item success."""
+    GeminiExtractionService.set_mock_response(None)
+    original_key = settings.GEMINI_API_KEY
+    try:
+        settings.GEMINI_API_KEY = ""
+        pdf_content = create_sample_pdf_bytes()
+        res = client.post(
+            f"/api/v1/patients/{sample_patient}/reports?auto_process=true",
+            files={"file": ("scanned_bloodwork.pdf", pdf_content, "application/pdf")},
+        )
+        assert res.status_code == 503
+        assert "AI extraction is unavailable" in res.json()["detail"]
+
+        # Verify database record: marked FAILED honestly with NOT_AVAILABLE extraction_method
+        db = SessionLocal()
+        rep = db.query(MedicalReport).filter(MedicalReport.patient_id == sample_patient, MedicalReport.original_filename == "scanned_bloodwork.pdf").first()
+        assert rep is not None
+        assert rep.processing_status == "FAILED"
+        assert rep.extraction_status == "FAILED"
+        assert rep.extraction_method == "NOT_AVAILABLE"
+        assert "AI extraction is unavailable" in rep.extraction_error
+        db.close()
+    finally:
+        settings.GEMINI_API_KEY = original_key
+
+
+def test_gemini_unavailable_image_fails_honestly(sample_patient):
+    """Requirement 1: Image upload fails honestly when Gemini is unavailable."""
+    GeminiExtractionService.set_mock_response(None)
+    original_key = settings.GEMINI_API_KEY
+    try:
+        settings.GEMINI_API_KEY = ""
+        png_data = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+        res = client.post(
+            f"/api/v1/patients/{sample_patient}/reports?auto_process=true",
+            files={"file": ("lab_photo.png", png_data, "image/png")},
+        )
+        assert res.status_code == 503
+        assert "AI extraction is unavailable" in res.json()["detail"]
+
+        db = SessionLocal()
+        rep = db.query(MedicalReport).filter(MedicalReport.patient_id == sample_patient, MedicalReport.original_filename == "lab_photo.png").first()
+        assert rep.processing_status == "FAILED"
+        assert rep.extraction_method == "NOT_AVAILABLE"
+        db.close()
+    finally:
+        settings.GEMINI_API_KEY = original_key
+
+
+def test_deterministic_local_extraction_attribution(sample_patient, monkeypatch):
+    """Requirement 1 & 2: Clean text PDF with unconfigured Gemini uses LOCAL_DETERMINISTIC method, never AI_GENERATED."""
+    GeminiExtractionService.set_mock_response(None)
+    original_key = settings.GEMINI_API_KEY
+    try:
+        settings.GEMINI_API_KEY = ""
+        # Mock extract_text_from_pdf to return digital text
+        sample_text = (
+            "--- PAGE 1 ---\n"
+            "Comprehensive Metabolic Panel\n"
+            "Hemoglobin 13.5 g/dL 12.0 - 16.0\n"
+            "Platelets 250 10^3/uL 150-450\n"
+        )
+        from app.services.document_service import DocumentService
+        monkeypatch.setattr(
+            DocumentService,
+            "extract_text_from_pdf",
+            lambda path: (sample_text, [{"page_number": 1, "text": sample_text}], False),
+        )
+
+        pdf_content = create_sample_pdf_bytes()
+        res = client.post(
+            f"/api/v1/patients/{sample_patient}/reports?auto_process=true",
+            files={"file": ("digital_report.pdf", pdf_content, "application/pdf")},
+        )
+        assert res.status_code == 201
+        data = res.json()
+
+        # Must explicitly declare LOCAL_DETERMINISTIC and NO model
+        assert data["extraction_method"] == "LOCAL_DETERMINISTIC"
+        assert data["extraction_model"] is None
+        assert data["processing_status"] == "REVIEW_REQUIRED"
+        assert len(data["lab_results"]) == 2
+
+        # Results must be labeled REPORT_EXTRACTED, never AI_GENERATED
+        assert all(l["provenance_tag"] == "REPORT_EXTRACTED" for l in data["lab_results"])
+        assert all(l["original_provenance"] == "REPORT_EXTRACTED" for l in data["lab_results"])
+    finally:
+        settings.GEMINI_API_KEY = original_key
+
+
+def test_gemini_extraction_success_attribution(sample_patient):
+    """Requirement 2: Successful Gemini extraction records GEMINI_AI and actual model name."""
+    GeminiExtractionService.set_mock_response({
+        "report_type": "LABORATORY_REPORT",
+        "report_date": "2026-09-05",
+        "facility_name": "Apex Central Lab",
+        "physician_name": "Dr. Smith",
+        "observations": [],
+        "laboratory_results": [
+            {
+                "test_name": "Sodium",
+                "value_raw": "140",
+                "value_numeric": 140.0,
+                "unit": "mmol/L",
+                "reference_range_raw": "135 - 145",
+                "reference_low": 135.0,
+                "reference_high": 145.0,
+                "source_page": 1,
+                "source_text": "Sodium 140 mmol/L 135-145",
+            }
+        ],
+        "medications": [],
+        "diagnoses_or_conditions_as_stated": [],
+    })
+
+    pdf_content = create_sample_pdf_bytes()
+    res = client.post(
+        f"/api/v1/patients/{sample_patient}/reports?auto_process=true",
+        files={"file": ("ai_panel.pdf", pdf_content, "application/pdf")},
+    )
+    assert res.status_code == 201
+    data = res.json()
+    assert data["extraction_method"] == "GEMINI_AI"
+    assert data["extraction_model"] == settings.GEMINI_MODEL
+
+
+def test_gemini_rate_limit_surfaces_honestly(sample_patient, monkeypatch):
+    """Requirement 9: Gemini 429 rate limit is surfaced honestly without silent fallback."""
+    GeminiExtractionService.set_mock_response(None)
+    original_key = settings.GEMINI_API_KEY
+    try:
+        settings.GEMINI_API_KEY = "mock_valid_key"
+
+        async def mock_extract(*args, **kwargs):
+            raise RuntimeError("Gemini API rate limit exceeded (HTTP 429). Please retry shortly.")
+
+        monkeypatch.setattr(GeminiExtractionService, "extract_structured_data", mock_extract)
+
+        pdf_content = create_sample_pdf_bytes()
+        res = client.post(
+            f"/api/v1/patients/{sample_patient}/reports?auto_process=true",
+            files={"file": ("rate_limited.pdf", pdf_content, "application/pdf")},
+        )
+        assert res.status_code == 422
+        assert "429" in res.json()["detail"]
+
+        db = SessionLocal()
+        rep = db.query(MedicalReport).filter(MedicalReport.patient_id == sample_patient, MedicalReport.original_filename == "rate_limited.pdf").first()
+        assert rep.processing_status == "FAILED"
+        assert rep.extraction_method == "NOT_AVAILABLE"
+        assert "429" in rep.extraction_error
+        db.close()
+    finally:
+        settings.GEMINI_API_KEY = original_key
+
+
+def test_extraction_mock_isolation():
+    """Requirement 8: Ensure extraction mock override starts None and is isolated from production."""
+    assert GeminiExtractionService._mock_response_override is None
+    res = client.get("/api/v1/reports/999999")
+    assert res.status_code == 404
+    assert GeminiExtractionService._mock_response_override is None

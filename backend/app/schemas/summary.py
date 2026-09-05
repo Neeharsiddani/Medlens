@@ -10,6 +10,7 @@ class ControlledSummaryInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
     patient_identifier: str
+    full_name: Optional[str] = None
     age: Optional[int] = None
     sex: Optional[str] = None
     symptoms: List[Dict[str, Any]] = Field(default_factory=list)
@@ -17,6 +18,7 @@ class ControlledSummaryInput(BaseModel):
     allergies: List[Dict[str, Any]] = Field(default_factory=list)
     medications: List[Dict[str, Any]] = Field(default_factory=list)
     other_information: Optional[str] = None
+    reports: List[Dict[str, Any]] = Field(default_factory=list)
     laboratory_results: List[Dict[str, Any]] = Field(default_factory=list)
     observations: List[Dict[str, Any]] = Field(default_factory=list)
     report_medications: List[Dict[str, Any]] = Field(default_factory=list)

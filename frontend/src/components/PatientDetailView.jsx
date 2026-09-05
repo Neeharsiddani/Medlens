@@ -600,9 +600,49 @@ export default function PatientDetailView({ patientId, onBack, onEdit, onOpenUpl
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.75rem', borderTop: '1px solid var(--border-subtle)' }}>
-                    <span className="provenance-tag">
-                      <span className="provenance-dot"></span> REPORT_EXTRACTED
-                    </span>
+                    {(() => {
+                      if (rep.extraction_method === 'GEMINI_AI') {
+                        return (
+                          <span
+                            className="provenance-tag"
+                            style={{ backgroundColor: '#f5f3ff', borderColor: '#ddd6fe', color: '#6d28d9', fontWeight: 600, fontSize: '0.72rem' }}
+                            title={`Gemini AI · ${rep.extraction_model || 'gemini-2.5-flash'}`}
+                          >
+                            <span className="provenance-dot" style={{ backgroundColor: '#7c3aed' }}></span>
+                            {`Gemini AI · ${rep.extraction_model || 'gemini-2.5-flash'}`}
+                          </span>
+                        );
+                      }
+                      if (rep.extraction_method === 'LOCAL_DETERMINISTIC') {
+                        return (
+                          <span
+                            className="provenance-tag"
+                            style={{ backgroundColor: '#f0f9ff', borderColor: '#bae6fd', color: '#0369a1', fontWeight: 600, fontSize: '0.72rem' }}
+                            title="Deterministic Local Parser — Non-AI"
+                          >
+                            <span className="provenance-dot" style={{ backgroundColor: '#0284c7' }}></span>
+                            Deterministic Local Parser · Non-AI
+                          </span>
+                        );
+                      }
+                      if (rep.extraction_method === 'NOT_AVAILABLE' || rep.processing_status === 'FAILED') {
+                        return (
+                          <span
+                            className="provenance-tag"
+                            style={{ backgroundColor: '#fff1f2', borderColor: '#fecdd3', color: '#be123c', fontWeight: 600, fontSize: '0.72rem' }}
+                            title="AI Extraction Unavailable"
+                          >
+                            <span className="provenance-dot" style={{ backgroundColor: '#e11d48' }}></span>
+                            AI Extraction Unavailable
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="provenance-tag" style={{ fontSize: '0.72rem' }}>
+                          <span className="provenance-dot"></span> REPORT_EXTRACTED
+                        </span>
+                      );
+                    })()}
                     <button
                       className="btn btn-primary btn-sm"
                       onClick={() => setReviewReportId(rep.id)}
@@ -745,9 +785,28 @@ export default function PatientDetailView({ patientId, onBack, onEdit, onOpenUpl
                         </div>
                       </td>
                       <td>
-                        <span className="provenance-tag">
-                          <span className="provenance-dot"></span> REPORT_EXTRACTED
-                        </span>
+                        {lab.provenance_tag === 'USER_VERIFIED' ? (
+                          <span
+                            style={{
+                              fontSize: '0.68rem',
+                              padding: '0.15rem 0.4rem',
+                              borderRadius: '4px',
+                              backgroundColor: '#f0fdf4',
+                              color: '#15803d',
+                              border: '1px solid #bbf7d0',
+                              fontWeight: 600,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                            }}
+                            title={lab.original_provenance ? `Original source: ${lab.original_provenance}` : 'Verified by user'}
+                          >
+                            USER_VERIFIED
+                          </span>
+                        ) : (
+                          <span className="provenance-tag" style={{ fontSize: '0.72rem' }}>
+                            <span className="provenance-dot"></span> {lab.provenance_tag || 'REPORT_EXTRACTED'}
+                          </span>
+                        )}
                       </td>
                       <td>
                         <span
