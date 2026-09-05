@@ -1,4 +1,5 @@
 """Comprehensive tests for patient intake API endpoints, validation, and persistence."""
+import uuid
 from datetime import date, timedelta
 import pytest
 from fastapi.testclient import TestClient
@@ -7,11 +8,16 @@ from app.main import app
 client = TestClient(app)
 
 
+def _gen_id(prefix: str = "TEST") -> str:
+    return f"PAT-{prefix}-{uuid.uuid4().hex[:8].upper()}"
+
+
 def test_create_valid_patient():
     """Test creating a patient with full structured clinical intake data."""
+    test_id = _gen_id("VAL")
     payload = {
         "full_name": "Arthur Pendelton",
-        "patient_identifier": "PAT-TEST-001",
+        "patient_identifier": test_id,
         "date_of_birth": "1975-06-15",
         "age": 51,
         "sex": "MALE",
@@ -39,7 +45,7 @@ def test_create_valid_patient():
     data = response.json()
     assert data["id"] is not None
     assert data["full_name"] == "Arthur Pendelton"
-    assert data["patient_identifier"] == "PAT-TEST-001"
+    assert data["patient_identifier"] == test_id
     assert data["sex"] == "MALE"
     assert data["provenance_tag"] == "USER_PROVIDED"
     assert len(data["symptoms"]) == 2
@@ -91,8 +97,9 @@ def test_list_patients_and_pagination():
 
 def test_search_patients():
     """Test filtering and searching patients by name and MRN."""
-    unique_name = "Zachary UniqueSearchName"
-    unique_mrn = "PAT-SEARCH-999"
+    rand_suffix = uuid.uuid4().hex[:6]
+    unique_name = f"Zachary Search{rand_suffix}"
+    unique_mrn = f"PAT-SRCH-{rand_suffix.upper()}"
     client.post(
         "/api/v1/patients",
         json={
@@ -103,13 +110,13 @@ def test_search_patients():
     )
 
     # Search by full name substring
-    search_resp = client.get(f"/api/v1/patients?search=UniqueSearchName")
+    search_resp = client.get(f"/api/v1/patients?search={rand_suffix}")
     assert search_resp.status_code == 200
     results = search_resp.json()["items"]
     assert any(p["full_name"] == unique_name for p in results)
 
     # Search by identifier
-    search_mrn_resp = client.get(f"/api/v1/patients?search=SEARCH-999")
+    search_mrn_resp = client.get(f"/api/v1/patients?search={unique_mrn}")
     assert search_mrn_resp.status_code == 200
     mrn_results = search_mrn_resp.json()["items"]
     assert any(p["patient_identifier"] == unique_mrn for p in mrn_results)
@@ -205,7 +212,7 @@ def test_age_and_dob_validation():
 
 def test_duplicate_patient_identifier():
     """Test conflict error (409) when creating two patients with the same identifier."""
-    dup_id = "PAT-DUP-CONFLICT-01"
+    dup_id = _gen_id("DUP")
     resp1 = client.post(
         "/api/v1/patients",
         json={"full_name": "First Patient", "patient_identifier": dup_id, "age": 35},
@@ -222,7 +229,7 @@ def test_duplicate_patient_identifier():
 
 def test_database_persistence_and_provenance_schema():
     """Verify database persistence and schema preservation of USER_PROVIDED provenance."""
-    mrn = "PAT-PROV-901"
+    mrn = _gen_id("PROV")
     create_resp = client.post(
         "/api/v1/patients",
         json={

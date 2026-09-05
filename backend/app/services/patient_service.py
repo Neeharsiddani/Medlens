@@ -16,7 +16,7 @@ class PatientIdentifierConflictError(Exception):
 def _generate_patient_identifier() -> str:
     """Generate a clean, professional clinical MRN / Patient ID."""
     today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
-    unique_suffix = uuid.uuid4().hex[:5].upper()
+    unique_suffix = uuid.uuid4().hex[:8].upper()
     return f"PAT-{today_str}-{unique_suffix}"
 
 
@@ -33,12 +33,21 @@ def get_patient_by_identifier(db: Session, identifier: str) -> Optional[Patient]
 def create_patient(db: Session, patient_in: PatientCreate) -> Patient:
     """Create and persist a new patient record with USER_PROVIDED intake data."""
     # Determine identifier
-    identifier = patient_in.patient_identifier.strip() if patient_in.patient_identifier else _generate_patient_identifier()
-    
-    # Check uniqueness
-    existing = get_patient_by_identifier(db, identifier)
-    if existing:
-        raise PatientIdentifierConflictError(f"Patient with identifier '{identifier}' already exists.")
+    if patient_in.patient_identifier and patient_in.patient_identifier.strip():
+        identifier = patient_in.patient_identifier.strip()
+        existing = get_patient_by_identifier(db, identifier)
+        if existing:
+            raise PatientIdentifierConflictError(f"Patient with identifier '{identifier}' already exists.")
+    else:
+        # Auto-generate unique identifier with collision-safe loop
+        identifier = None
+        for _ in range(5):
+            candidate = _generate_patient_identifier()
+            if not get_patient_by_identifier(db, candidate):
+                identifier = candidate
+                break
+        if not identifier:
+            identifier = f"PAT-{uuid.uuid4().hex[:12].upper()}"
 
     # Convert Pydantic item models to plain dicts for JSON storage
     symptoms_data = [item.model_dump() for item in patient_in.symptoms]
