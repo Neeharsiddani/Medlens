@@ -1,4 +1,5 @@
 """Patient SQLAlchemy model with structured clinical intake attributes."""
+import uuid
 from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Date, Text, DateTime, JSON
 from app.db.base import Base
@@ -11,10 +12,16 @@ class Patient(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     
     # Unique clinical identifier (e.g. MRN, PAT-2026-0001)
-    patient_identifier = Column(String(64), unique=True, index=True, nullable=False)
+    patient_identifier = Column(
+        String(64),
+        unique=True,
+        index=True,
+        nullable=False,
+        default=lambda: f"PAT-{uuid.uuid4().hex[:8].upper()}",
+    )
     
     # Demographics
-    full_name = Column(String(255), nullable=False, index=True)
+    full_name = Column(String(255), nullable=False, index=True, default="Unknown Patient")
     date_of_birth = Column(Date, nullable=True)
     age = Column(Integer, nullable=True)
     sex = Column(String(50), nullable=True)  # MALE, FEMALE, OTHER, UNKNOWN

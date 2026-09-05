@@ -25,7 +25,11 @@ export async function fetchApi(endpoint, options = {}) {
     let errorDetail = `Request failed with status ${response.status}`;
     try {
       const errorJson = await response.json();
-      if (errorJson.detail) {
+      if (Array.isArray(errorJson.detail)) {
+        errorDetail = errorJson.detail
+          .map((d) => (d.loc ? `${d.loc.slice(-1)[0]}: ${d.msg}` : d.msg))
+          .join('; ');
+      } else if (typeof errorJson.detail === 'string') {
         errorDetail = errorJson.detail;
       }
     } catch {
@@ -34,6 +38,11 @@ export async function fetchApi(endpoint, options = {}) {
     const err = new Error(errorDetail);
     err.status = response.status;
     throw err;
+  }
+
+  // Handle 204 No Content
+  if (response.status === 204) {
+    return null;
   }
 
   return response.json();
