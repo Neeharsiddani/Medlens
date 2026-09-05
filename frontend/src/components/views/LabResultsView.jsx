@@ -62,9 +62,9 @@ export default function LabResultsView({ patients }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 700, margin: 0 }}>Structured Laboratory Intelligence</h2>
+          <h2 style={{ fontSize: '1.4rem', fontWeight: 700, margin: 0 }}>Cross-Report Lab Comparison</h2>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
-            Deterministic reference-range awareness evaluated exclusively against report-provided intervals with full clinical auditability
+            Structured laboratory registry across clinical documents with deterministic reference-range intelligence and clinician auditability
           </p>
         </div>
       </div>
@@ -82,7 +82,7 @@ export default function LabResultsView({ patients }) {
       >
         <Info size={18} color="#0284c7" style={{ flexShrink: 0 }} />
         <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-          <strong>Deterministic Clinical Classification:</strong> LOW, NORMAL, and HIGH statuses are calculated exclusively via deterministic application logic using the reference ranges printed on the source report. The engine never guesses or queries external knowledge bases.
+          <strong>Deterministic Range Engine — Zero AI:</strong> LOW, NORMAL, and HIGH statuses are evaluated strictly via deterministic code against report-provided intervals. Gemini AI never assigns or guesses clinical reference ranges.
         </div>
       </div>
 

@@ -261,10 +261,11 @@ export default function ExtractionReviewModal({ reportId, isOpen, onClose, onUpd
                     }}
                   >
                     <div>
-                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.25rem' }}>
+                      <label htmlFor="meta-report-type" style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.25rem' }}>
                         Report Type
                       </label>
                       <select
+                        id="meta-report-type"
                         className="input select"
                         value={metaType}
                         onChange={(e) => setMetaType(e.target.value)}
@@ -279,10 +280,11 @@ export default function ExtractionReviewModal({ reportId, isOpen, onClose, onUpd
                       </select>
                     </div>
                     <div>
-                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.25rem' }}>
+                      <label htmlFor="meta-facility-name" style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.25rem' }}>
                         Facility Name
                       </label>
                       <input
+                        id="meta-facility-name"
                         className="input"
                         placeholder="e.g. Metro Health Lab"
                         value={metaFacility}
@@ -291,10 +293,11 @@ export default function ExtractionReviewModal({ reportId, isOpen, onClose, onUpd
                       />
                     </div>
                     <div>
-                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.25rem' }}>
+                      <label htmlFor="meta-physician-name" style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.25rem' }}>
                         Physician Name
                       </label>
                       <input
+                        id="meta-physician-name"
                         className="input"
                         placeholder="e.g. Dr. Sarah Jenkins"
                         value={metaPhysician}
@@ -426,6 +429,7 @@ export default function ExtractionReviewModal({ reportId, isOpen, onClose, onUpd
                                 {isEditing ? (
                                   <input
                                     className="input"
+                                    aria-label={`Edit value for ${lab.test_name}`}
                                     value={editValue}
                                     onChange={(e) => setEditValue(e.target.value)}
                                     placeholder={lab.value_raw}
