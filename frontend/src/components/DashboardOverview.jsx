@@ -8,7 +8,6 @@ import {
   ArrowRight,
   ShieldCheck,
   Activity,
-  AlertCircle,
   CheckCircle2,
   Calendar,
   Sparkles,
@@ -16,7 +15,7 @@ import {
   RefreshCw,
   FolderOpen
 } from 'lucide-react';
-import { listPatientReports } from '../api/reports';
+import { listPatientReports, getReportExtraction } from '../api/reports';
 
 export default function DashboardOverview({
   patients,
@@ -30,35 +29,65 @@ export default function DashboardOverview({
 }) {
   const recentPatients = patients ? patients.slice(0, 6) : [];
   const [recentReports, setRecentReports] = useState([]);
+  const [labsSummary, setLabsSummary] = useState({ total: 0, verified: 0, outOfRange: 0 });
   const [loadingReports, setLoadingReports] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
-    const loadReportsFeed = async () => {
-      if (!patients || patients.length === 0) return;
+    const loadReportsAndLabs = async () => {
+      if (!patients || patients.length === 0) {
+        setRecentReports([]);
+        setLabsSummary({ total: 0, verified: 0, outOfRange: 0 });
+        return;
+      }
       setLoadingReports(true);
       try {
-        const accumulator = [];
-        for (const p of patients.slice(0, 8)) {
+        const reportAcc = [];
+        const labAcc = [];
+
+        for (const p of patients.slice(0, 10)) {
           try {
             const res = await listPatientReports(p.id);
             if (res.reports && res.reports.length > 0) {
-              res.reports.forEach((rep) => {
-                accumulator.push({
+              for (const rep of res.reports) {
+                reportAcc.push({
                   ...rep,
                   patientName: p.full_name,
                   mrn: p.patient_identifier,
                 });
-              });
+
+                // Fetch real extracted laboratory results for real metrics
+                try {
+                  const ext = await getReportExtraction(rep.id);
+                  if (ext.lab_results && ext.lab_results.length > 0) {
+                    ext.lab_results.forEach((l) => labAcc.push(l));
+                  }
+                } catch {
+                  // Ingested report without extractions
+                }
+              }
             }
           } catch (err) {
             console.error('Failed to load reports for patient:', p.id, err);
           }
         }
+
         // Sort newest uploaded first
-        accumulator.sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
+        reportAcc.sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
+
         if (isMounted) {
-          setRecentReports(accumulator);
+          setRecentReports(reportAcc);
+          const verified = labAcc.filter((l) => l.verification_status === 'VERIFIED').length;
+          const outOfRange = labAcc.filter((l) => {
+            const status = l.verified_classification || l.reference_range_status;
+            return status === 'LOW' || status === 'HIGH';
+          }).length;
+
+          setLabsSummary({
+            total: labAcc.length,
+            verified,
+            outOfRange,
+          });
         }
       } finally {
         if (isMounted) {
@@ -67,7 +96,7 @@ export default function DashboardOverview({
       }
     };
 
-    loadReportsFeed();
+    loadReportsAndLabs();
     return () => {
       isMounted = false;
     };
@@ -95,7 +124,7 @@ export default function DashboardOverview({
           boxShadow: 'var(--shadow-sm)',
         }}
       >
-        <div style={{ maxWidth: '820px' }}>
+        <div style={{ flex: '1 1 540px', minWidth: '280px' }}>
           <div
             style={{
               display: 'inline-flex',
@@ -139,17 +168,17 @@ export default function DashboardOverview({
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap', fontSize: '0.8rem', color: '#0369a1' }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
               <Users size={14} />
-              <strong>{totalPatients}</strong> Active Patient Cohort
+              <strong>{totalPatients}</strong> Active Patient{totalPatients === 1 ? '' : 's'}
             </span>
             <span>•</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
               <FileText size={14} />
-              <strong>{recentReports.length}</strong> Processed Reports
+              <strong>{recentReports.length}</strong> Ingested Document{recentReports.length === 1 ? '' : 's'}
             </span>
             <span>•</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-              <Sparkles size={14} />
-              Phase 4 Reference Range & Phase 5 AI Summary Active
+              <Activity size={14} />
+              <strong>{labsSummary.total}</strong> Extracted Lab Result{labsSummary.total === 1 ? '' : 's'}
             </span>
           </div>
         </div>
@@ -184,7 +213,7 @@ export default function DashboardOverview({
         </div>
       </div>
 
-      {/* 2. Balanced 4-Metric Clinical Operations Grid */}
+      {/* 2. Balanced 4-Metric Clinical Operations Grid (100% Real Database State) */}
       <div className="dashboard-metrics-grid">
         {/* Metric 1: Active Patients */}
         <div className="card" style={{ padding: '1.25rem' }}>
@@ -212,9 +241,15 @@ export default function DashboardOverview({
               <Users size={20} />
             </div>
           </div>
-          <div style={{ marginTop: '0.75rem', fontSize: '0.76rem', color: '#16a34a', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <CheckCircle2 size={13} />
-            Database verified clinical intake records
+          <div style={{ marginTop: '0.75rem', fontSize: '0.76rem', color: totalPatients > 0 ? '#16a34a' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            {totalPatients > 0 ? (
+              <>
+                <CheckCircle2 size={13} />
+                {totalPatients} verified intake record{totalPatients === 1 ? '' : 's'} in registry
+              </>
+            ) : (
+              'No patients registered in database'
+            )}
           </div>
         </div>
 
@@ -223,7 +258,7 @@ export default function DashboardOverview({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={{ fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Ingested Documents
+                Clinical Documents
               </div>
               <div style={{ fontSize: '1.9rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.2rem' }}>
                 {recentReports.length}
@@ -244,18 +279,20 @@ export default function DashboardOverview({
               <FileText size={20} />
             </div>
           </div>
-          <div style={{ marginTop: '0.75rem', fontSize: '0.76rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <div style={{ marginTop: '0.75rem', fontSize: '0.76rem', color: recentReports.length > 0 ? 'var(--text-secondary)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <ShieldCheck size={13} color="#0d9488" />
-            PDF & image OCR reports processed
+            {recentReports.length > 0
+              ? `${recentReports.length} report${recentReports.length === 1 ? '' : 's'} with SHA-256 hash audit`
+              : 'No clinical documents uploaded yet'}
           </div>
         </div>
 
-        {/* Metric 3: Pending Reviews */}
+        {/* Metric 3: Pending Review */}
         <div className="card" style={{ padding: '1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={{ fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Pending Reviews
+                Pending Review
               </div>
               <div style={{ fontSize: '1.9rem', fontWeight: 700, color: pendingReviewCount > 0 ? '#d97706' : 'var(--text-primary)', marginTop: '0.2rem' }}>
                 {pendingReviewCount}
@@ -277,20 +314,21 @@ export default function DashboardOverview({
             </div>
           </div>
           <div style={{ marginTop: '0.75rem', fontSize: '0.76rem', color: pendingReviewCount > 0 ? '#b45309' : 'var(--text-muted)' }}>
-            {pendingReviewCount > 0 ? `${pendingReviewCount} report(s) require clinician review` : 'All extractions reviewed'}
+            {pendingReviewCount > 0
+              ? `${pendingReviewCount} report${pendingReviewCount === 1 ? '' : 's'} require clinician review`
+              : 'No reports pending review'}
           </div>
         </div>
 
-        {/* Metric 4: Clinical Intelligence */}
+        {/* Metric 4: Structured Lab Results (Phase 3 Extractions & Phase 4 Classifications) */}
         <div className="card" style={{ padding: '1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={{ fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Intelligence Status
+                Structured Lab Tests
               </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#4338ca', marginTop: '0.45rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                <span style={{ width: '9px', height: '9px', borderRadius: '50%', backgroundColor: '#10b981' }}></span>
-                Engines Online
+              <div style={{ fontSize: '1.9rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.2rem' }}>
+                {labsSummary.total}
               </div>
             </div>
             <div
@@ -298,18 +336,20 @@ export default function DashboardOverview({
                 width: '42px',
                 height: '42px',
                 borderRadius: '10px',
-                backgroundColor: '#eef2ff',
-                color: '#4f46e5',
+                backgroundColor: '#f5f3ff',
+                color: '#7c3aed',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              <Sparkles size={20} />
+              <Activity size={20} />
             </div>
           </div>
-          <div style={{ marginTop: '0.75rem', fontSize: '0.76rem', color: '#6366f1' }}>
-            Range Engine & Patient Summary Active
+          <div style={{ marginTop: '0.75rem', fontSize: '0.76rem', color: labsSummary.total > 0 ? '#6d28d9' : 'var(--text-muted)' }}>
+            {labsSummary.total > 0
+              ? `${labsSummary.verified} verified • ${labsSummary.outOfRange} out of range`
+              : 'No lab results extracted yet'}
           </div>
         </div>
       </div>
@@ -333,12 +373,12 @@ export default function DashboardOverview({
           {recentPatients.length === 0 ? (
             <div className="empty-state-box" style={{ padding: '2.5rem 1rem' }}>
               <Users size={28} color="var(--text-muted)" style={{ marginBottom: '0.5rem' }} />
-              <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>No patient records registered yet</div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>No patient records yet</div>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-                Create your first patient intake to begin organizing records and medical reports.
+                Register your first patient intake to begin organizing records and medical reports.
               </div>
               <button className="btn btn-primary btn-sm" onClick={onOpenAddPatient}>
-                <UserPlus size={14} /> Add First Patient
+                <UserPlus size={14} /> Add Patient
               </button>
             </div>
           ) : (
@@ -480,16 +520,16 @@ export default function DashboardOverview({
                 Loading recent documents...
               </div>
             ) : recentReports.length === 0 ? (
-              <div style={{ padding: '1.5rem 1rem', textAlign: 'center', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+              <div style={{ padding: '1.75rem 1.25rem', textAlign: 'center', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
                 <FileText size={22} color="var(--text-muted)" style={{ margin: '0 auto 0.4rem' }} />
-                <div style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
-                  No medical reports uploaded yet
+                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  No clinical reports yet
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                  Upload a CBC panel, metabolic report, or discharge summary.
+                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '0.2rem', marginBottom: '0.85rem' }}>
+                  Upload a medical report to begin.
                 </div>
-                <button className="btn btn-secondary btn-sm" onClick={onOpenUpload} style={{ marginTop: '0.85rem', fontSize: '0.78rem' }}>
-                  <FileUp size={13} /> Upload First Report
+                <button className="btn btn-secondary btn-sm" onClick={onOpenUpload} style={{ fontSize: '0.78rem' }}>
+                  <FileUp size={13} /> Upload Medical Report
                 </button>
               </div>
             ) : (
@@ -518,7 +558,7 @@ export default function DashboardOverview({
                             whiteSpace: 'nowrap',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
-                            maxWidth: '180px',
+                            maxWidth: '280px',
                           }}
                           title={rep.original_filename}
                         >
@@ -534,7 +574,7 @@ export default function DashboardOverview({
                           }`}
                           style={{ fontSize: '0.68rem', padding: '0.1rem 0.4rem' }}
                         >
-                          {rep.processing_status === 'REVIEW_REQUIRED' ? 'Needs Review' : rep.processing_status}
+                          {rep.processing_status === 'REVIEW_REQUIRED' ? 'Requires Review' : rep.processing_status}
                         </span>
                       </div>
                       <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>

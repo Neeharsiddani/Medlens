@@ -14,6 +14,7 @@ import {
   RefreshCw,
   X,
   Pill,
+  ArrowRight,
 } from 'lucide-react';
 import { checkBackendHealth } from './api/health';
 import { getPatients } from './api/patients';
@@ -287,42 +288,147 @@ export default function App() {
           <LabResultsView patients={patients} />
         )}
 
-        {currentView === 'medications' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div>
-              <h2 style={{ fontSize: '1.4rem', fontWeight: 700, margin: 0 }}>Active Medications Directory</h2>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
-                Cross-patient medication reconciliation with audit provenance
-              </p>
+        {currentView === 'medications' && (() => {
+          const allMeds = (patients || []).flatMap((p) =>
+            (p.medications || []).map((m) => ({
+              ...m,
+              patientId: p.id,
+              patientName: p.full_name,
+              mrn: p.patient_identifier,
+            }))
+          );
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <h2 style={{ fontSize: '1.4rem', fontWeight: 700, margin: 0 }}>Active Medications Directory</h2>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
+                    Active pharmaceuticals and intake prescriptions across registered patients
+                  </p>
+                </div>
+              </div>
+
+              {allMeds.length === 0 ? (
+                <div className="empty-state-box">
+                  <div className="empty-icon-bubble">
+                    <Pill size={24} />
+                  </div>
+                  <div className="empty-title">No Active Medications Documented</div>
+                  <div className="empty-desc">
+                    Patients in the registry currently have no active medications documented during clinical intake.
+                  </div>
+                  <button className="btn btn-secondary" onClick={() => setCurrentView('patients')}>
+                    Open Patient Directory
+                  </button>
+                </div>
+              ) : (
+                <div className="clinical-table-card">
+                  <table className="clinical-table">
+                    <thead>
+                      <tr>
+                        <th>Patient</th>
+                        <th>MRN</th>
+                        <th>Medication Name</th>
+                        <th>Dosage</th>
+                        <th>Frequency</th>
+                        <th>Provenance</th>
+                        <th style={{ textAlign: 'right' }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allMeds.map((med, idx) => (
+                        <tr key={idx}>
+                          <td>
+                            <strong style={{ color: 'var(--text-primary)' }}>{med.patientName}</strong>
+                          </td>
+                          <td>
+                            <span className="mrn-badge">{med.mrn}</span>
+                          </td>
+                          <td>
+                            <strong style={{ color: 'var(--text-primary)' }}>{med.name}</strong>
+                          </td>
+                          <td>{med.dosage || '—'}</td>
+                          <td>{med.frequency || '—'}</td>
+                          <td>
+                            <span className="provenance-tag">
+                              <span className="provenance-dot"></span> Patient reported
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => handleSelectPatient(med.patientId)}
+                            >
+                              Open Chart
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-            <div className="card" style={{ padding: '1.5rem' }}>
-              <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                Medication reconciliation allows clinicians to compare user-reported intake prescriptions with extracted discharge orders from medical reports. Open an individual patient chart to view their reconciled medication profile.
-              </p>
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {currentView === 'timeline' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div>
               <h2 style={{ fontSize: '1.4rem', fontWeight: 700, margin: 0 }}>Clinical Encounter Timeline</h2>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
-                Chronological timeline of laboratory reports, physician notes, and patient intake
+                Chronological timeline of registered intakes, laboratory reports, and clinician verifications
               </p>
             </div>
-            <div className="empty-state-box">
-              <div className="empty-icon-bubble">
-                <Clock size={24} />
+
+            {(!patients || patients.length === 0) ? (
+              <div className="empty-state-box">
+                <div className="empty-icon-bubble">
+                  <Clock size={24} />
+                </div>
+                <div className="empty-title">No Patient Encounters Yet</div>
+                <div className="empty-desc">
+                  Register a patient intake to establish a chronological clinical timeline.
+                </div>
+                <button className="btn btn-primary" onClick={handleOpenAddPatient}>
+                  <UserPlus size={14} /> Add Patient Intake
+                </button>
               </div>
-              <div className="empty-title">Select a Patient to Inspect Timeline</div>
-              <div className="empty-desc">
-                Open any patient from the Patient Directory to view their chronological clinical timeline.
+            ) : (
+              <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>Select a Patient Record</h3>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
+                  Select any active patient from the registry below to inspect their full chronological timeline:
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.75rem', marginTop: '0.5rem' }}>
+                  {patients.map((p) => (
+                    <div
+                      key={p.id}
+                      onClick={() => handleSelectPatient(p.id)}
+                      style={{
+                        padding: '0.85rem 1rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-subtle)',
+                        backgroundColor: '#f8fafc',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <div>
+                        <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>{p.full_name}</strong>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
+                          MRN: {p.patient_identifier} • Registered: {new Date(p.created_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <ArrowRight size={14} color="#0284c7" />
+                    </div>
+                  ))}
+                </div>
               </div>
-              <button className="btn btn-secondary" onClick={() => setCurrentView('patients')}>
-                Open Patient Directory
-              </button>
-            </div>
+            )}
           </div>
         )}
       </main>

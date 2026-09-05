@@ -235,13 +235,13 @@ export default function PatientDetailView({ patientId, onBack, onEdit, onOpenUpl
           className={`nav-link-btn ${activeTab === 'reports' ? 'active' : ''}`}
           onClick={() => setActiveTab('reports')}
         >
-          Clinical Reports <span className="nav-tab-badge">0</span>
+          Clinical Reports <span className="nav-tab-badge">{reports ? reports.length : 0}</span>
         </button>
         <button
           className={`nav-link-btn ${activeTab === 'labs' ? 'active' : ''}`}
           onClick={() => setActiveTab('labs')}
         >
-          Lab Results
+          Lab Results <span className="nav-tab-badge">{allLabs ? allLabs.length : 0}</span>
         </button>
         <button
           className={`nav-link-btn ${activeTab === 'medications' ? 'active' : ''}`}

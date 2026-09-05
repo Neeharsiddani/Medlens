@@ -101,9 +101,10 @@ body {
 }
 
 .navbar-top-row {
-  max-width: 1560px;
+  width: 92%;
+  max-width: 1600px;
   margin: 0 auto;
-  padding: 0.75rem 2rem;
+  padding: 0.75rem 1rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -237,9 +238,10 @@ body {
 }
 
 .navbar-nav-container {
-  max-width: 1560px;
+  width: 92%;
+  max-width: 1600px;
   margin: 0 auto;
-  padding: 0 2rem;
+  padding: 0 1rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -291,10 +293,10 @@ body {
 /* Main Content Area */
 .main-content {
   flex: 1;
-  max-width: 1560px;
-  width: 100%;
+  width: 92%;
+  max-width: 1600px;
   margin: 0 auto;
-  padding: 1.75rem 2rem 3rem 2rem;
+  padding: 1.75rem 1rem 3rem 1rem;
 }
 
 /* Typography Hierarchy */
@@ -808,7 +810,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .system-footer-content {
-  max-width: 1560px;
+  width: 92%;
+  max-width: 1600px;
   margin: 0 auto;
   padding: 0 0.5rem;
   display: flex;
@@ -890,8 +893,9 @@ h1, h2, h3, h4, h5, h6 {
   .navbar-nav-container,
   .main-content,
   .system-footer-content {
-    padding-left: 1.25rem;
-    padding-right: 1.25rem;
+    width: 96%;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
   }
 
   .dashboard-metrics-grid {

@@ -111,20 +111,22 @@ export default function PatientSummaryCard({ patientId, patient, onSummaryUpdate
               >
                 Patient Summary
               </h3>
-              <span
-                className="provenance-tag"
-                style={{
-                  backgroundColor: '#f5f3ff',
-                  borderColor: '#ddd6fe',
-                  color: '#6d28d9',
-                  fontWeight: 600,
-                  fontSize: '0.72rem',
-                }}
-                title="Grounded exclusively in structured MedLens record"
-              >
-                <span className="provenance-dot" style={{ backgroundColor: '#7c3aed' }}></span>
-                AI_GENERATED
-              </span>
+              {summary && (
+                <span
+                  className="provenance-tag"
+                  style={{
+                    backgroundColor: summary.provenance_tag === 'AI_GENERATED' ? '#f5f3ff' : '#f8fafc',
+                    borderColor: summary.provenance_tag === 'AI_GENERATED' ? '#ddd6fe' : '#e2e8f0',
+                    color: summary.provenance_tag === 'AI_GENERATED' ? '#6d28d9' : '#475569',
+                    fontWeight: 600,
+                    fontSize: '0.72rem',
+                  }}
+                  title={summary.provenance_tag === 'AI_GENERATED' ? 'Grounded exclusively in structured MedLens record' : 'System generated summary'}
+                >
+                  <span className="provenance-dot" style={{ backgroundColor: summary.provenance_tag === 'AI_GENERATED' ? '#7c3aed' : '#64748b' }}></span>
+                  {summary.provenance_tag}
+                </span>
+              )}
             </div>
             <div style={{ fontSize: '0.76rem', color: '#64748b', marginTop: '0.15rem' }}>
               Factual, patient-friendly explanation synthesized strictly from structured database entities
