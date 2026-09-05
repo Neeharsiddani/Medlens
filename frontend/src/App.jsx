@@ -257,6 +257,8 @@ export default function App() {
             onOpenAddPatient={handleOpenAddPatient}
             onSelectPatient={handleSelectPatient}
             onViewDirectory={() => setCurrentView('patients')}
+            onOpenReviewReport={(repId) => setGlobalReviewReportId(repId)}
+            onViewReports={() => setCurrentView('reports')}
           />
         )}
 
