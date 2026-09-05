@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Activity,
   Users,
@@ -32,6 +32,7 @@ export default function App() {
   // Navigation: 'overview' | 'patients' | 'reports' | 'labs' | 'medications' | 'timeline' | 'detail'
   const [currentView, setCurrentView] = useState('overview');
   const [selectedPatientId, setSelectedPatientId] = useState(null);
+  const [patientInitialTab, setPatientInitialTab] = useState('overview');
 
   // Data state
   const [patients, setPatients] = useState([]);
@@ -66,7 +67,7 @@ export default function App() {
 
   const loadPatientList = useCallback(async () => {
     try {
-      const data = await getPatients({ limit: 10 });
+      const data = await getPatients({ limit: 100 });
       setPatients(data.items || []);
       setTotalPatients(data.total || 0);
     } catch {
@@ -79,9 +80,22 @@ export default function App() {
     loadPatientList();
   }, [fetchHealth, loadPatientList]);
 
+  // Memoized aggregated medications list across all registered patients
+  const allMeds = useMemo(() => {
+    return (patients || []).flatMap((p) =>
+      (p.medications || []).map((m) => ({
+        ...m,
+        patientId: p.id,
+        patientName: p.full_name,
+        mrn: p.patient_identifier,
+      }))
+    );
+  }, [patients]);
+
   // Handlers
-  const handleSelectPatient = (id) => {
+  const handleSelectPatient = (id, tab = 'overview') => {
     setSelectedPatientId(id);
+    setPatientInitialTab(tab);
     setCurrentView('detail');
   };
 
@@ -268,6 +282,8 @@ export default function App() {
             onSelectPatient={handleSelectPatient}
             onAddPatient={handleOpenAddPatient}
             onEditPatient={handleOpenEditPatient}
+            globalSearchTerm={globalSearchTerm}
+            onGlobalSearchChange={setGlobalSearchTerm}
           />
         )}
 
@@ -277,6 +293,7 @@ export default function App() {
             onBack={handleBackToDirectory}
             onEdit={handleOpenEditPatient}
             onOpenUpload={handleOpenUpload}
+            initialTab={patientInitialTab}
           />
         )}
 
@@ -288,18 +305,8 @@ export default function App() {
           <LabResultsView patients={patients} />
         )}
 
-        {currentView === 'medications' && (() => {
-          const allMeds = (patients || []).flatMap((p) =>
-            (p.medications || []).map((m) => ({
-              ...m,
-              patientId: p.id,
-              patientName: p.full_name,
-              mrn: p.patient_identifier,
-            }))
-          );
-
-          return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        {currentView === 'medications' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
                   <h2 style={{ fontSize: '1.4rem', fontWeight: 700, margin: 0 }}>Active Medications Directory</h2>
@@ -370,8 +377,7 @@ export default function App() {
                 </div>
               )}
             </div>
-          );
-        })()}
+        )}
 
         {currentView === 'timeline' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -405,7 +411,7 @@ export default function App() {
                   {patients.map((p) => (
                     <div
                       key={p.id}
-                      onClick={() => handleSelectPatient(p.id)}
+                      onClick={() => handleSelectPatient(p.id, 'timeline')}
                       style={{
                         padding: '0.85rem 1rem',
                         borderRadius: '8px',

@@ -6,6 +6,7 @@ import re
 from typing import Optional, Dict, Any, List
 import httpx
 from app.core.config import settings
+from app.core.ai_utils import clean_markdown_json
 from app.schemas.report import ReportExtraction, ExtractedLabResult, ExtractedObservation, ExtractedMedication
 
 logger = logging.getLogger(__name__)
@@ -184,14 +185,7 @@ class GeminiExtractionService:
     @classmethod
     def _clean_and_validate_json(cls, raw_json_str: str) -> ReportExtraction:
         """Strip markdown ticks if present, parse JSON, and validate against ReportExtraction."""
-        cleaned = raw_json_str.strip()
-        if cleaned.startswith("```json"):
-            cleaned = cleaned[7:]
-        elif cleaned.startswith("```"):
-            cleaned = cleaned[3:]
-        if cleaned.endswith("```"):
-            cleaned = cleaned[:-3]
-        cleaned = cleaned.strip()
+        cleaned = clean_markdown_json(raw_json_str)
 
         try:
             parsed = json.loads(cleaned)

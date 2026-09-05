@@ -22,6 +22,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { getReportExtraction, updateReportMetadata, verifyLabResult } from '../api/reports';
+import { getStatusBadge, getExtractionMethodBadge } from '../utils/statusBadges';
 
 export default function ExtractionReviewModal({ reportId, isOpen, onClose, onUpdate }) {
   const [report, setReport] = useState(null);
@@ -69,51 +70,6 @@ export default function ExtractionReviewModal({ reportId, isOpen, onClose, onUpd
       setEditingLabId(null);
     }
   }, [isOpen, reportId]);
-
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'LOW':
-        return { className: 'status-badge low', label: 'LOW' };
-      case 'NORMAL':
-        return { className: 'status-badge normal', label: 'NORMAL' };
-      case 'HIGH':
-        return { className: 'status-badge high', label: 'HIGH' };
-      case 'NO_RANGE_AVAILABLE':
-        return { className: 'status-badge no-range', label: 'NO RANGE' };
-      case 'UNDETERMINED':
-      default:
-        return { className: 'status-badge undetermined', label: 'UNDETERMINED' };
-    }
-  };
-
-  const getExtractionMethodBadge = (method, model, procStatus) => {
-    if (method === 'GEMINI_AI') {
-      return {
-        label: `Gemini AI · ${model || 'gemini-2.5-flash'}`,
-        style: { backgroundColor: '#f5f3ff', borderColor: '#ddd6fe', color: '#6d28d9', fontWeight: 600 },
-        dotColor: '#7c3aed',
-      };
-    }
-    if (method === 'LOCAL_DETERMINISTIC') {
-      return {
-        label: 'Deterministic Local Parser · Non-AI',
-        style: { backgroundColor: '#f0f9ff', borderColor: '#bae6fd', color: '#0369a1', fontWeight: 600 },
-        dotColor: '#0284c7',
-      };
-    }
-    if (method === 'NOT_AVAILABLE' || procStatus === 'FAILED') {
-      return {
-        label: 'AI Extraction Unavailable',
-        style: { backgroundColor: '#fff1f2', borderColor: '#fecdd3', color: '#be123c', fontWeight: 600 },
-        dotColor: '#e11d48',
-      };
-    }
-    return {
-      label: 'REPORT_EXTRACTED',
-      style: { backgroundColor: '#f8fafc', borderColor: '#e2e8f0', color: '#475569' },
-      dotColor: '#64748b',
-    };
-  };
 
   const handleVerifyLab = async (labId, newStatus, customValue = null) => {
     setVerifying(true);
@@ -509,7 +465,7 @@ export default function ExtractionReviewModal({ reportId, isOpen, onClose, onUpd
                                   onClick={() => setSourceItem({ ...lab, type: 'LAB_RESULT' })}
                                 >
                                   <Eye size={12} />
-                                  <span>Page {lab.source_page || 1}</span>
+                                  <span>{lab.source_page ? `Page ${lab.source_page}` : 'Source'}</span>
                                 </button>
                               </td>
                               <td>
@@ -757,7 +713,7 @@ export default function ExtractionReviewModal({ reportId, isOpen, onClose, onUpd
                                 style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
                                 onClick={() => setSourceItem({ ...med, type: 'MEDICATION' })}
                               >
-                                <Eye size={12} /> Page {med.source_page || 1}
+                                <Eye size={12} /> {med.source_page ? `Page ${med.source_page}` : 'Source'}
                               </button>
                             </td>
                             <td>

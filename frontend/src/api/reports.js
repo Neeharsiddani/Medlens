@@ -44,3 +44,26 @@ export async function verifyLabResult(reportId, resultId, verificationData) {
     body: JSON.stringify(verificationData),
   });
 }
+
+export async function getReportsStats() {
+  return fetchApi('/api/v1/reports/stats');
+}
+
+export async function getGlobalReports(params = {}) {
+  const query = new URLSearchParams();
+  if (params.skip !== undefined) query.append('skip', params.skip);
+  if (params.limit !== undefined) query.append('limit', params.limit);
+  const qStr = query.toString();
+  return fetchApi(`/api/v1/reports${qStr ? `?${qStr}` : ''}`);
+}
+
+export async function getGlobalLabResults(params = {}) {
+  const query = new URLSearchParams();
+  if (params.skip !== undefined) query.append('skip', params.skip);
+  if (params.limit !== undefined) query.append('limit', params.limit);
+  if (params.mrn && params.mrn !== 'ALL') query.append('mrn', params.mrn);
+  if (params.status && params.status !== 'ALL') query.append('status', params.status);
+  if (params.search) query.append('search', params.search);
+  const qStr = query.toString();
+  return fetchApi(`/api/v1/reports/lab-results${qStr ? `?${qStr}` : ''}`);
+}

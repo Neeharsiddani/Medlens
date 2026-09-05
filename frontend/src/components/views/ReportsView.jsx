@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   FileText,
   FileUp,
@@ -9,7 +9,7 @@ import {
   RefreshCw,
   Eye,
 } from 'lucide-react';
-import { listPatientReports } from '../../api/reports';
+import { getGlobalReports } from '../../api/reports';
 import ExtractionReviewModal from '../ExtractionReviewModal';
 
 export default function ReportsView({ onOpenUpload, patients }) {
@@ -17,38 +17,21 @@ export default function ReportsView({ onOpenUpload, patients }) {
   const [loading, setLoading] = useState(false);
   const [selectedReportId, setSelectedReportId] = useState(null);
 
-  const loadAllReports = async () => {
-    if (!patients || patients.length === 0) return;
+  const loadAllReports = useCallback(async () => {
     setLoading(true);
     try {
-      const allReps = [];
-      for (const p of patients) {
-        try {
-          const res = await listPatientReports(p.id);
-          if (res.reports && res.reports.length > 0) {
-            res.reports.forEach((r) => {
-              allReps.push({
-                ...r,
-                patientName: p.full_name,
-                mrn: p.patient_identifier,
-              });
-            });
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      }
-      setRealReports(allReps);
+      const res = await getGlobalReports({ limit: 100 });
+      setRealReports(res.reports || []);
     } catch (err) {
-      console.error(err);
+      console.error('Failed to load clinical reports:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadAllReports();
-  }, [patients]);
+  }, [loadAllReports]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

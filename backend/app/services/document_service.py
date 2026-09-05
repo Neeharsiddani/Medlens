@@ -1,11 +1,14 @@
 """Document storage, validation, SHA-256 hashing, and text extraction service."""
 import hashlib
+import logging
 import os
 import uuid
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any
 from fastapi import HTTPException, UploadFile, status
 from pypdf import PdfReader
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 ALLOWED_MIME_TYPES = {
     "application/pdf": ".pdf",
@@ -45,7 +48,7 @@ class DocumentService:
         return ext
 
     @staticmethod
-    async def save_uploaded_file(file: UploadFile) -> Dict[str, any]:
+    async def save_uploaded_file(file: UploadFile) -> Dict[str, Any]:
         """Validate size, compute SHA-256 hash, and securely save file to storage directory."""
         ext = DocumentService.validate_file_metadata(file)
 
@@ -76,11 +79,15 @@ class DocumentService:
         except HTTPException:
             raise
         except Exception as e:
+            logger.error("Failed to store uploaded document: %s", e, exc_info=True)
             if os.path.exists(storage_path):
-                os.remove(storage_path)
+                try:
+                    os.remove(storage_path)
+                except Exception:
+                    pass
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to store uploaded document: {str(e)}",
+                detail="Failed to securely store uploaded document. Please check server storage permissions.",
             )
 
         document_hash = sha256.hexdigest()

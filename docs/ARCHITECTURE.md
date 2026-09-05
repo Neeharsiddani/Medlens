@@ -1,6 +1,6 @@
-# MedLens — Architecture & Phase Roadmap
+# MedLens — Architecture & Clinical Safety Blueprint
 
-MedLens is an AI-powered clinical information intelligence application designed to synthesize, organize, and audit scattered medical information across patient history, prescriptions, laboratory reports, and previous clinical records with complete provenance.
+MedLens is an AI-powered clinical information intelligence application designed to synthesize, organize, and audit scattered medical information across patient history, prescriptions, laboratory reports, and previous clinical records with complete provenance and deterministic safety guarantees.
 
 ## Architectural Layers
 
@@ -23,37 +23,49 @@ MedLens is an AI-powered clinical information intelligence application designed 
         +-----------------------------+               +-----------------------------+
         |  SQLAlchemy 2.0 ORM Engine  |               |    Pydantic v2 Validation   |
         +--------------+--------------+               +-----------------------------+
-                       |
-                       v
-        +-----------------------------+
-        |   SQLite Database Storage   |
-        |     (Alembic Migrations)    |
-        +-----------------------------+
+                       |                                             |
+                       v                                             v
+        +-----------------------------+               +-----------------------------+
+        |   SQLite Database Storage   |               | Deterministic Reference-    |
+        |     (Alembic Migrations)    |               | Range Engine (Phase 4)      |
+        +-----------------------------+               +-----------------------------+
+                       |                                             |
+                       v                                             v
+        +-----------------------------+               +-----------------------------+
+        |  SHA-256 Document Hashing   |               | Gemini AI Extraction &      |
+        |  & Local Fallback Parser    |               | Patient Summary Service     |
+        +-----------------------------+               +-----------------------------+
 ```
 
-## Multi-Phase Implementation Roadmap
+## Implemented Architecture Phases
 
-1. **Phase 1: Foundation (Current)**
-   - Core full-stack skeleton (FastAPI + SQLAlchemy + Alembic + React + Vite).
-   - Database connection and migration pipelines.
+1. **Phase 1: Foundation (Completed)**
+   - Asynchronous FastAPI core with centralized Pydantic settings.
+   - Database connection management, session scoping, and health check telemetry.
    - Pydantic v2 schemas and validation foundation.
-   - Health check telemetry and connection verification.
-   - **No AI / No document processing**.
+   - Comprehensive test suite setup with isolated temporary test database.
 
-2. **Phase 2: Patient Management & Document Ingestion (Upcoming)**
-   - Patient intake and profiling.
-   - Medical document upload handling (PDF, image, text).
-   - File storage and metadata tracking.
+2. **Phase 2: Patient Intake & Management (Completed)**
+   - Structured intake model capturing demographics, symptoms, conditions, allergies, and medications.
+   - Automatic provenance assignment (`USER_PROVIDED`).
+   - Query pagination, search indexing, and conflict detection.
 
-3. **Phase 3: Deterministic Laboratory Engine & AI Extraction (Upcoming)**
-   - Gemini Vision / multimodal document extraction into strict Pydantic schemas.
-   - Deterministic reference-range rule engine (LOW / NORMAL / HIGH).
-   - Non-hallucinatory data guarantees.
+3. **Phase 3: Document Ingestion & Structured Extraction (Completed)**
+   - Cryptographic document integrity hashing (SHA-256).
+   - Ingestion whitelist (PDF, PNG, JPG, JPEG) up to 25 MB.
+   - Structured extraction with honest availability handling:
+     - Configured Gemini: Schema-constrained extraction attributed to `GEMINI_AI` with configured model name.
+     - Unconfigured Gemini: Digital text PDFs fall back to deterministic regex parser (`LOCAL_DETERMINISTIC`). Scanned PDFs and images return honest HTTP 503 error.
 
-4. **Phase 4: Synthesis, Timeline & Provenance (Upcoming)**
-   - Interactive clinical timeline and trend analysis.
-   - Medical entity linking with source document bounding boxes and provenance.
+4. **Phase 4: Deterministic Reference-Range Engine & Clinician Verification (Completed)**
+   - Pure Python deterministic rule engine for reference range evaluation (`LOW`, `NORMAL`, `HIGH`, `NO_RANGE_AVAILABLE`, `UNDETERMINED`).
+   - Gemini is strictly prohibited from evaluating clinical range classifications.
+   - Clinician verification workflow:
+     - Preserves immutable `value_raw` and source excerpt.
+     - Upgrades provenance to `USER_VERIFIED` while preserving `REPORT_EXTRACTED` source origin.
+     - No fabricated clinician identities.
 
-5. **Phase 5: Clinical Summarization & Conflict Detection (Upcoming)**
-   - AI clinical brief generation anchored in verified findings.
-   - Drug-drug and diagnosis conflict detection algorithms.
+5. **Phase 5: Grounded Clinical Summaries & Staleness Engine (Completed)**
+   - Patient-friendly AI summaries synthesized strictly from structured database entities.
+   - Pydantic output validation gate (`ControlledSummaryOutput`) before database persistence.
+   - SHA-256 source fingerprinting tracking mutations across all 7 clinical categories.

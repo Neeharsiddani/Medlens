@@ -11,6 +11,9 @@ from app.schemas.report import (
     MedicalReportUpdate,
     LabResultResponse,
     LabResultVerificationUpdate,
+    DashboardStatsResponse,
+    GlobalMedicalReportListResponse,
+    GlobalLabResultListResponse,
 )
 from app.services.report_service import ReportService
 
@@ -69,6 +72,53 @@ def list_patient_reports(
 # ==============================================================================
 
 @reports_router.get(
+    "/stats",
+    response_model=DashboardStatsResponse,
+    summary="Get aggregated workspace dashboard statistics",
+    description="Returns instant SQL-computed clinical registry counts without client-side loops.",
+)
+def get_dashboard_stats(
+    db: Session = Depends(get_db),
+) -> DashboardStatsResponse:
+    return ReportService.get_dashboard_stats(db=db)
+
+
+@reports_router.get(
+    "",
+    response_model=GlobalMedicalReportListResponse,
+    summary="List all medical reports across patients",
+    description="Retrieves a paginated list of medical reports across the clinic with patient demographic context.",
+)
+def list_global_reports(
+    skip: int = Query(0, ge=0, description="Offset for pagination"),
+    limit: int = Query(50, ge=1, le=100, description="Page limit"),
+    db: Session = Depends(get_db),
+) -> GlobalMedicalReportListResponse:
+    reports, total = ReportService.get_global_reports(db=db, skip=skip, limit=limit)
+    return GlobalMedicalReportListResponse(total=total, reports=reports)
+
+
+@reports_router.get(
+    "/lab-results",
+    response_model=GlobalLabResultListResponse,
+    summary="List all structured laboratory results",
+    description="Retrieves a paginated list of laboratory results across patients with search and status filters.",
+)
+def list_global_lab_results(
+    skip: int = Query(0, ge=0, description="Offset for pagination"),
+    limit: int = Query(100, ge=1, le=200, description="Page limit"),
+    mrn: Optional[str] = Query(None, description="Filter by patient MRN"),
+    status: Optional[str] = Query(None, description="Filter by classification status (LOW, NORMAL, HIGH, etc.)"),
+    search: Optional[str] = Query(None, description="Search by test name, patient name, or filename"),
+    db: Session = Depends(get_db),
+) -> GlobalLabResultListResponse:
+    labs, total = ReportService.get_global_lab_results(
+        db=db, skip=skip, limit=limit, mrn=mrn, status=status, search=search
+    )
+    return GlobalLabResultListResponse(total=total, labs=labs)
+
+
+@reports_router.get(
     "/{report_id}",
     response_model=MedicalReportResponse,
     summary="Get report metadata and processing status",
@@ -91,7 +141,7 @@ def get_report_extraction(
     report_id: int,
     db: Session = Depends(get_db),
 ):
-    return ReportService.get_report_by_id(db=db, report_id=report_id)
+    return ReportService.get_report_by_id(db=db, report_id=report_id, eager_load=True)
 
 
 @reports_router.post(

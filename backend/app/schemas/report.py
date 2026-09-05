@@ -200,3 +200,40 @@ class LabResultVerificationUpdate(BaseModel):
     verified_value: Optional[str] = Field(None, description="Human-edited or confirmed value. Preserves value_raw.")
     verified_by: Optional[str] = Field(None, description="Name/role of reviewer if authenticated")
     verification_notes: Optional[str] = Field(None, description="Optional clinician review notes")
+
+
+# ==============================================================================
+# Aggregated Dashboard & Global Collection Schemas (Efficiency Optimizations)
+# ==============================================================================
+
+class DashboardStatsResponse(BaseSchema):
+    """Aggregated clinical workspace metrics computed directly via database counts."""
+    total_patients: int
+    total_reports: int
+    pending_reviews: int
+    total_labs: int
+    verified_labs: int
+    out_of_range_labs: int
+
+
+class GlobalMedicalReportResponse(MedicalReportResponse):
+    """Medical report metadata enriched with patient identification."""
+    patient_name: str
+    patient_identifier: str
+
+
+class GlobalMedicalReportListResponse(BaseSchema):
+    total: int
+    reports: List[GlobalMedicalReportResponse]
+
+
+class GlobalLabResultResponse(LabResultResponse):
+    """Laboratory result enriched with patient and source report context."""
+    patient_name: str
+    patient_identifier: str
+    report_filename: str
+
+
+class GlobalLabResultListResponse(BaseSchema):
+    total: int
+    labs: List[GlobalLabResultResponse]

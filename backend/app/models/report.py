@@ -34,9 +34,9 @@ class MedicalReport(Base):
     
     # Processing lifecycle statuses
     # processing_status: UPLOADED, PROCESSING, EXTRACTED, REVIEW_REQUIRED, FAILED
-    processing_status = Column(String(50), nullable=False, default="UPLOADED")
+    processing_status = Column(String(50), nullable=False, default="UPLOADED", index=True)
     # extraction_status: PENDING, COMPLETED, FAILED
-    extraction_status = Column(String(50), nullable=False, default="PENDING")
+    extraction_status = Column(String(50), nullable=False, default="PENDING", index=True)
     extraction_error = Column(Text, nullable=True)
 
     # Extraction method & model attribution (Hardening Pass 2)
@@ -48,8 +48,8 @@ class MedicalReport(Base):
     provenance_tag = Column(String(50), nullable=False, default="REPORT_EXTRACTED")
     
     # Timestamps
-    uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
     updated_at = Column(
         DateTime,
         default=lambda: datetime.now(timezone.utc),
@@ -95,7 +95,7 @@ class LabResult(Base):
     reference_unit = Column(String(100), nullable=True)
 
     observation = Column(Text, nullable=True)
-    report_date = Column(Date, nullable=True)
+    report_date = Column(Date, nullable=True, index=True)
 
     # Provenance & Source Traceability
     source_page = Column(Integer, nullable=True)     # Page number in original document if known
@@ -104,7 +104,7 @@ class LabResult(Base):
     provenance_tag = Column(String(50), nullable=False, default="REPORT_EXTRACTED")
     
     # Human Review & Verification (starts UNVERIFIED)
-    verification_status = Column(String(50), nullable=False, default="UNVERIFIED")  # UNVERIFIED, VERIFIED, REJECTED
+    verification_status = Column(String(50), nullable=False, default="UNVERIFIED", index=True)  # UNVERIFIED, VERIFIED, REJECTED
     verified_value = Column(String(255), nullable=True)  # If human edits, store here; value_raw is immutable
     verified_by = Column(String(255), nullable=True)
     verified_at = Column(DateTime, nullable=True)

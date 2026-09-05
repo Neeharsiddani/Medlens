@@ -571,3 +571,30 @@ def test_extraction_mock_isolation():
     res = client.get("/api/v1/reports/999999")
     assert res.status_code == 404
     assert GeminiExtractionService._mock_response_override is None
+
+
+def test_dashboard_stats_endpoint():
+    """Verify GET /api/v1/reports/stats returns SQL-computed workspace metrics."""
+    res = client.get("/api/v1/reports/stats")
+    assert res.status_code == 200
+    data = res.json()
+    for key in ["total_patients", "total_reports", "pending_reviews", "total_labs", "verified_labs", "out_of_range_labs"]:
+        assert key in data
+        assert isinstance(data[key], int)
+
+
+def test_global_reports_and_labs_endpoints():
+    """Verify GET /api/v1/reports and /api/v1/reports/lab-results pagination and structure."""
+    rep_res = client.get("/api/v1/reports?skip=0&limit=10")
+    assert rep_res.status_code == 200
+    rep_data = rep_res.json()
+    assert "total" in rep_data
+    assert "reports" in rep_data
+    assert isinstance(rep_data["reports"], list)
+
+    lab_res = client.get("/api/v1/reports/lab-results?skip=0&limit=10")
+    assert lab_res.status_code == 200
+    lab_data = lab_res.json()
+    assert "total" in lab_data
+    assert "labs" in lab_data
+    assert isinstance(lab_data["labs"], list)

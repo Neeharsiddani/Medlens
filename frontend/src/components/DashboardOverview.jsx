@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   FileUp,
   UserPlus,
@@ -15,7 +15,7 @@ import {
   RefreshCw,
   FolderOpen
 } from 'lucide-react';
-import { listPatientReports, getReportExtraction } from '../api/reports';
+import { getReportsStats, getGlobalReports } from '../api/reports';
 
 export default function DashboardOverview({
   patients,
@@ -27,67 +27,35 @@ export default function DashboardOverview({
   onOpenReviewReport,
   onViewReports,
 }) {
-  const recentPatients = patients ? patients.slice(0, 6) : [];
+  const recentPatients = useMemo(() => (patients ? patients.slice(0, 6) : []), [patients]);
   const [recentReports, setRecentReports] = useState([]);
-  const [labsSummary, setLabsSummary] = useState({ total: 0, verified: 0, outOfRange: 0 });
+  const [stats, setStats] = useState({
+    total_patients: totalPatients || 0,
+    total_reports: 0,
+    pending_reviews: 0,
+    total_labs: 0,
+    verified_labs: 0,
+    out_of_range_labs: 0,
+  });
   const [loadingReports, setLoadingReports] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
-    const loadReportsAndLabs = async () => {
-      if (!patients || patients.length === 0) {
-        setRecentReports([]);
-        setLabsSummary({ total: 0, verified: 0, outOfRange: 0 });
-        return;
-      }
+    const loadDashboardData = async () => {
       setLoadingReports(true);
       try {
-        const reportAcc = [];
-        const labAcc = [];
-
-        for (const p of patients.slice(0, 10)) {
-          try {
-            const res = await listPatientReports(p.id);
-            if (res.reports && res.reports.length > 0) {
-              for (const rep of res.reports) {
-                reportAcc.push({
-                  ...rep,
-                  patientName: p.full_name,
-                  mrn: p.patient_identifier,
-                });
-
-                // Fetch real extracted laboratory results for real metrics
-                try {
-                  const ext = await getReportExtraction(rep.id);
-                  if (ext.lab_results && ext.lab_results.length > 0) {
-                    ext.lab_results.forEach((l) => labAcc.push(l));
-                  }
-                } catch {
-                  // Ingested report without extractions
-                }
-              }
-            }
-          } catch (err) {
-            console.error('Failed to load reports for patient:', p.id, err);
-          }
-        }
-
-        // Sort newest uploaded first
-        reportAcc.sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
+        const [statsData, reportsData] = await Promise.all([
+          getReportsStats().catch(() => null),
+          getGlobalReports({ limit: 10 }).catch(() => null),
+        ]);
 
         if (isMounted) {
-          setRecentReports(reportAcc);
-          const verified = labAcc.filter((l) => l.verification_status === 'VERIFIED').length;
-          const outOfRange = labAcc.filter((l) => {
-            const status = l.verified_classification || l.reference_range_status;
-            return status === 'LOW' || status === 'HIGH';
-          }).length;
-
-          setLabsSummary({
-            total: labAcc.length,
-            verified,
-            outOfRange,
-          });
+          if (statsData) {
+            setStats(statsData);
+          }
+          if (reportsData && reportsData.reports) {
+            setRecentReports(reportsData.reports);
+          }
         }
       } finally {
         if (isMounted) {
@@ -96,15 +64,13 @@ export default function DashboardOverview({
       }
     };
 
-    loadReportsAndLabs();
+    loadDashboardData();
     return () => {
       isMounted = false;
     };
-  }, [patients]);
+  }, [patients, totalPatients]);
 
-  const pendingReviewCount = recentReports.filter(
-    (r) => r.processing_status === 'REVIEW_REQUIRED'
-  ).length;
+  const pendingReviewCount = stats.pending_reviews;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
@@ -245,7 +211,7 @@ export default function DashboardOverview({
             {totalPatients > 0 ? (
               <>
                 <CheckCircle2 size={13} />
-                {totalPatients} verified intake record{totalPatients === 1 ? '' : 's'} in registry
+                {totalPatients} clinical intake record{totalPatients === 1 ? '' : 's'} in registry
               </>
             ) : (
               'No patients registered in database'
@@ -261,7 +227,7 @@ export default function DashboardOverview({
                 Clinical Documents
               </div>
               <div style={{ fontSize: '1.9rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.2rem' }}>
-                {recentReports.length}
+                {stats.total_reports}
               </div>
             </div>
             <div
@@ -279,10 +245,10 @@ export default function DashboardOverview({
               <FileText size={20} />
             </div>
           </div>
-          <div style={{ marginTop: '0.75rem', fontSize: '0.76rem', color: recentReports.length > 0 ? 'var(--text-secondary)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <div style={{ marginTop: '0.75rem', fontSize: '0.76rem', color: stats.total_reports > 0 ? 'var(--text-secondary)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <ShieldCheck size={13} color="#0d9488" />
-            {recentReports.length > 0
-              ? `${recentReports.length} report${recentReports.length === 1 ? '' : 's'} with SHA-256 hash audit`
+            {stats.total_reports > 0
+              ? `${stats.total_reports} report${stats.total_reports === 1 ? '' : 's'} with SHA-256 hash audit`
               : 'No clinical documents uploaded yet'}
           </div>
         </div>
@@ -328,7 +294,7 @@ export default function DashboardOverview({
                 Structured Lab Tests
               </div>
               <div style={{ fontSize: '1.9rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.2rem' }}>
-                {labsSummary.total}
+                {stats.total_labs}
               </div>
             </div>
             <div
@@ -346,9 +312,9 @@ export default function DashboardOverview({
               <Activity size={20} />
             </div>
           </div>
-          <div style={{ marginTop: '0.75rem', fontSize: '0.76rem', color: labsSummary.total > 0 ? '#6d28d9' : 'var(--text-muted)' }}>
-            {labsSummary.total > 0
-              ? `${labsSummary.verified} verified • ${labsSummary.outOfRange} out of range`
+          <div style={{ marginTop: '0.75rem', fontSize: '0.76rem', color: stats.total_labs > 0 ? '#6d28d9' : 'var(--text-muted)' }}>
+            {stats.total_labs > 0
+              ? `${stats.verified_labs} verified • ${stats.out_of_range_labs} out of range`
               : 'No lab results extracted yet'}
           </div>
         </div>

@@ -1,9 +1,10 @@
 """Medical report lifecycle orchestration service."""
 from datetime import datetime, timezone, date
 import logging
-from typing import List, Optional
+from typing import List, Optional, Tuple, Dict, Any
 from fastapi import HTTPException, UploadFile, status
-from sqlalchemy.orm import Session
+from sqlalchemy import func, or_
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.patient import Patient
 from app.models.report import MedicalReport, LabResult, ReportObservation, ReportMedication
@@ -290,15 +291,183 @@ class ReportService:
         )
 
     @staticmethod
-    def get_report_by_id(db: Session, report_id: int) -> MedicalReport:
+    def get_report_by_id(db: Session, report_id: int, eager_load: bool = False) -> MedicalReport:
         """Fetch report by primary key or raise 404."""
-        report = db.query(MedicalReport).filter(MedicalReport.id == report_id).first()
+        query = db.query(MedicalReport)
+        if eager_load:
+            query = query.options(
+                selectinload(MedicalReport.lab_results),
+                selectinload(MedicalReport.observations),
+                selectinload(MedicalReport.medications),
+            )
+        report = query.filter(MedicalReport.id == report_id).first()
         if not report:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Medical report with ID {report_id} not found.",
             )
         return report
+
+    @staticmethod
+    def get_dashboard_stats(db: Session) -> Dict[str, int]:
+        """Compute aggregated workspace metrics directly via optimized SQL aggregate queries."""
+        total_patients = db.query(func.count(Patient.id)).scalar() or 0
+        total_reports = db.query(func.count(MedicalReport.id)).scalar() or 0
+        pending_reviews = (
+            db.query(func.count(MedicalReport.id))
+            .filter(MedicalReport.processing_status == "REVIEW_REQUIRED")
+            .scalar() or 0
+        )
+        total_labs = db.query(func.count(LabResult.id)).scalar() or 0
+        verified_labs = (
+            db.query(func.count(LabResult.id))
+            .filter(LabResult.verification_status == "VERIFIED")
+            .scalar() or 0
+        )
+        out_of_range_labs = (
+            db.query(func.count(LabResult.id))
+            .filter(
+                or_(
+                    LabResult.reference_range_status.in_(["LOW", "HIGH"]),
+                    LabResult.verified_classification.in_(["LOW", "HIGH"]),
+                )
+            )
+            .scalar() or 0
+        )
+        return {
+            "total_patients": total_patients,
+            "total_reports": total_reports,
+            "pending_reviews": pending_reviews,
+            "total_labs": total_labs,
+            "verified_labs": verified_labs,
+            "out_of_range_labs": out_of_range_labs,
+        }
+
+    @staticmethod
+    def get_global_reports(
+        db: Session, skip: int = 0, limit: int = 50
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """Fetch paginated medical reports across all patients with patient metadata via single join."""
+        query = (
+            db.query(
+                MedicalReport,
+                Patient.full_name.label("patient_name"),
+                Patient.patient_identifier.label("patient_identifier"),
+            )
+            .join(Patient, MedicalReport.patient_id == Patient.id)
+        )
+        total = query.count()
+        rows = query.order_by(MedicalReport.created_at.desc()).offset(skip).limit(limit).all()
+
+        results = []
+        for rep, pat_name, pat_mrn in rows:
+            rep_dict = {
+                "id": rep.id,
+                "patient_id": rep.patient_id,
+                "original_filename": rep.original_filename,
+                "stored_filename": rep.stored_filename,
+                "mime_type": rep.mime_type,
+                "file_size": rep.file_size,
+                "document_hash": rep.document_hash,
+                "report_type": rep.report_type,
+                "report_date": rep.report_date,
+                "facility_name": rep.facility_name,
+                "physician_name": rep.physician_name,
+                "processing_status": rep.processing_status,
+                "extraction_status": rep.extraction_status,
+                "extraction_method": rep.extraction_method,
+                "extraction_model": rep.extraction_model,
+                "extraction_error": rep.extraction_error,
+                "provenance_tag": rep.provenance_tag,
+                "uploaded_at": rep.uploaded_at,
+                "created_at": rep.created_at,
+                "updated_at": rep.updated_at,
+                "patient_name": pat_name,
+                "patient_identifier": pat_mrn,
+            }
+            results.append(rep_dict)
+        return results, total
+
+    @staticmethod
+    def get_global_lab_results(
+        db: Session,
+        skip: int = 0,
+        limit: int = 100,
+        mrn: Optional[str] = None,
+        status: Optional[str] = None,
+        search: Optional[str] = None,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """Fetch paginated lab results across all reports with filtering and patient context."""
+        query = (
+            db.query(
+                LabResult,
+                Patient.full_name.label("patient_name"),
+                Patient.patient_identifier.label("patient_identifier"),
+                MedicalReport.original_filename.label("report_filename"),
+            )
+            .join(Patient, LabResult.patient_id == Patient.id)
+            .join(MedicalReport, LabResult.report_id == MedicalReport.id)
+        )
+
+        if mrn and mrn != "ALL":
+            query = query.filter(Patient.patient_identifier == mrn.strip())
+
+        if status and status != "ALL":
+            query = query.filter(
+                or_(
+                    LabResult.verified_classification == status,
+                    (LabResult.verified_classification.is_(None) & (LabResult.reference_range_status == status)),
+                )
+            )
+
+        if search and search.strip():
+            term = f"%{search.strip()}%"
+            query = query.filter(
+                or_(
+                    LabResult.test_name.ilike(term),
+                    Patient.full_name.ilike(term),
+                    MedicalReport.original_filename.ilike(term),
+                )
+            )
+
+        total = query.count()
+        rows = query.order_by(LabResult.created_at.desc()).offset(skip).limit(limit).all()
+
+        results = []
+        for lab, pat_name, pat_mrn, rep_filename in rows:
+            results.append({
+                "id": lab.id,
+                "report_id": lab.report_id,
+                "patient_id": lab.patient_id,
+                "test_name": lab.test_name,
+                "value_raw": lab.value_raw,
+                "value_numeric": lab.value_numeric,
+                "unit": lab.unit,
+                "reference_range_raw": lab.reference_range_raw,
+                "reference_low": lab.reference_low,
+                "reference_high": lab.reference_high,
+                "reference_unit": lab.reference_unit,
+                "observation": lab.observation,
+                "report_date": lab.report_date,
+                "source_page": lab.source_page,
+                "source_text": lab.source_text,
+                "provenance_tag": lab.provenance_tag,
+                "original_provenance": lab.original_provenance,
+                "verification_status": lab.verification_status,
+                "verified_value": lab.verified_value,
+                "verified_by": lab.verified_by,
+                "verified_at": lab.verified_at,
+                "verification_notes": lab.verification_notes,
+                "reference_range_status": lab.reference_range_status,
+                "verified_classification": lab.verified_classification,
+                "classification_reason": lab.classification_reason,
+                "created_at": lab.created_at,
+                "updated_at": lab.updated_at,
+                "patient_name": pat_name,
+                "patient_identifier": pat_mrn,
+                "report_filename": rep_filename,
+            })
+        return results, total
 
     @staticmethod
     def update_report_metadata(

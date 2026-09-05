@@ -15,14 +15,25 @@ import {
 } from 'lucide-react';
 import { getPatients, deletePatient } from '../api/patients';
 
-export default function PatientDirectory({ onSelectPatient, onAddPatient, onEditPatient }) {
+export default function PatientDirectory({
+  onSelectPatient,
+  onAddPatient,
+  onEditPatient,
+  globalSearchTerm = '',
+  onGlobalSearchChange,
+}) {
   const [patients, setPatients] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(globalSearchTerm);
   const [sexFilter, setSexFilter] = useState('ALL');
   const [deletingId, setDeletingId] = useState(null);
+
+  // Synchronize when global search input changes
+  useEffect(() => {
+    setSearchTerm(globalSearchTerm);
+  }, [globalSearchTerm]);
 
   const loadPatients = useCallback(async (searchQuery = '') => {
     setLoading(true);
@@ -123,7 +134,10 @@ export default function PatientDirectory({ onSelectPatient, onAddPatient, onEdit
               style={{ paddingLeft: '2.25rem', height: '38px', fontSize: '0.85rem' }}
               placeholder="Search by patient name, MRN, or complaint..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                if (onGlobalSearchChange) onGlobalSearchChange(e.target.value);
+              }}
             />
           </div>
 

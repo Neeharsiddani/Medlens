@@ -6,9 +6,10 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from fastapi import HTTPException, status
 import httpx
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import settings
+from app.core.ai_utils import clean_markdown_json
 from app.models.patient import Patient
 from app.models.report import MedicalReport, LabResult, ReportObservation, ReportMedication
 from app.models.summary import PatientSummary
@@ -67,9 +68,14 @@ class PatientSummaryService:
     @staticmethod
     def build_controlled_input(db: Session, patient: Patient) -> ControlledSummaryInput:
         """Construct a bounded, controlled summary payload from database entities."""
-        # Retrieve all reports and lab results for patient
+        # Retrieve all reports and lab results for patient with batch eager loading
         reports = (
             db.query(MedicalReport)
+            .options(
+                selectinload(MedicalReport.lab_results),
+                selectinload(MedicalReport.observations),
+                selectinload(MedicalReport.medications),
+            )
             .filter(MedicalReport.patient_id == patient.id)
             .order_by(MedicalReport.created_at.desc())
             .all()
@@ -389,14 +395,7 @@ class PatientSummaryService:
     @classmethod
     def _clean_and_validate_json(cls, raw_json_str: str) -> PatientSummaryOutput:
         """Strip markdown markers and enforce Pydantic validation."""
-        cleaned = raw_json_str.strip()
-        if cleaned.startswith("```json"):
-            cleaned = cleaned[7:]
-        elif cleaned.startswith("```"):
-            cleaned = cleaned[3:]
-        if cleaned.endswith("```"):
-            cleaned = cleaned[:-3]
-        cleaned = cleaned.strip()
+        cleaned = clean_markdown_json(raw_json_str)
 
         try:
             parsed = json.loads(cleaned)

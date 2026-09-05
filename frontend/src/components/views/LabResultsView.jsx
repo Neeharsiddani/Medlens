@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Activity,
   FileText,
@@ -10,8 +10,9 @@ import {
   RefreshCw,
   HelpCircle,
 } from 'lucide-react';
-import { listPatientReports, getReportExtraction } from '../../api/reports';
+import { getGlobalLabResults } from '../../api/reports';
 import ExtractionReviewModal from '../ExtractionReviewModal';
+import { getStatusBadge } from '../../utils/statusBadges';
 
 export default function LabResultsView({ patients }) {
   const [selectedMrn, setSelectedMrn] = useState('ALL');
@@ -21,74 +22,38 @@ export default function LabResultsView({ patients }) {
   const [loading, setLoading] = useState(false);
   const [selectedReportId, setSelectedReportId] = useState(null);
 
-  const loadAllLabs = async () => {
-    if (!patients || patients.length === 0) return;
+  const loadAllLabs = useCallback(async () => {
     setLoading(true);
     try {
-      const accumulator = [];
-      for (const p of patients) {
-        try {
-          const res = await listPatientReports(p.id);
-          const reports = res.reports || [];
-          for (const rep of reports) {
-            try {
-              const detail = await getReportExtraction(rep.id);
-              if (detail.lab_results && detail.lab_results.length > 0) {
-                detail.lab_results.forEach((lab) => {
-                  accumulator.push({
-                    ...lab,
-                    patientName: p.full_name,
-                    mrn: p.patient_identifier,
-                    reportFilename: rep.original_filename,
-                  });
-                });
-              }
-            } catch (err) {
-              console.error(err);
-            }
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      }
-      setLabs(accumulator);
+      const res = await getGlobalLabResults({ limit: 200 });
+      setLabs(res.labs || []);
     } catch (err) {
       console.error('Failed to load lab results:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadAllLabs();
-  }, [patients]);
+  }, [loadAllLabs]);
 
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'LOW':
-        return { className: 'status-badge low', label: 'LOW' };
-      case 'NORMAL':
-        return { className: 'status-badge normal', label: 'NORMAL' };
-      case 'HIGH':
-        return { className: 'status-badge high', label: 'HIGH' };
-      case 'NO_RANGE_AVAILABLE':
-        return { className: 'status-badge no-range', label: 'NO RANGE' };
-      case 'UNDETERMINED':
-      default:
-        return { className: 'status-badge undetermined', label: 'UNDETERMINED' };
-    }
-  };
-
-  const filteredLabs = labs.filter((lab) => {
-    const matchesMrn = selectedMrn === 'ALL' || lab.mrn === selectedMrn;
-    const currentClass = lab.current_classification || lab.reference_range_status || 'UNDETERMINED';
-    const matchesStatus = selectedStatus === 'ALL' || currentClass === selectedStatus;
-    const matchesSearch =
-      lab.test_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lab.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (lab.reportFilename && lab.reportFilename.toLowerCase().includes(searchTerm.toLowerCase()));
-    return matchesMrn && matchesStatus && matchesSearch;
-  });
+  const filteredLabs = useMemo(() => {
+    const sTerm = searchTerm.toLowerCase();
+    return labs.filter((lab) => {
+      const matchesMrn = selectedMrn === 'ALL' || lab.patient_identifier === selectedMrn || lab.mrn === selectedMrn;
+      const currentClass = lab.verified_classification || lab.reference_range_status || 'UNDETERMINED';
+      const matchesStatus = selectedStatus === 'ALL' || currentClass === selectedStatus;
+      const matchesSearch =
+        !sTerm ||
+        (lab.test_name && lab.test_name.toLowerCase().includes(sTerm)) ||
+        (lab.patient_name && lab.patient_name.toLowerCase().includes(sTerm)) ||
+        (lab.patientName && lab.patientName.toLowerCase().includes(sTerm)) ||
+        (lab.report_filename && lab.report_filename.toLowerCase().includes(sTerm)) ||
+        (lab.reportFilename && lab.reportFilename.toLowerCase().includes(sTerm));
+      return matchesMrn && matchesStatus && matchesSearch;
+    });
+  }, [labs, selectedMrn, selectedStatus, searchTerm]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -267,7 +232,7 @@ export default function LabResultsView({ patients }) {
                     <td>
                       <div style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>{lab.reportFilename}</div>
                       <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                        Page {lab.source_page || 1} • {lab.patientName}
+                        {lab.source_page ? `Page ${lab.source_page}` : 'Doc'} • {lab.patientName}
                       </div>
                     </td>
                     <td>
