@@ -103,7 +103,7 @@ class DocumentService:
         }
 
     @staticmethod
-    def extract_text_from_pdf(storage_path: str) -> Tuple[str, List[Dict[str, any]], bool]:
+    def extract_text_from_pdf(storage_path: str) -> Tuple[str, List[Dict[str, Any]], bool]:
         """
         Extract text from PDF using pypdf.
         Returns:

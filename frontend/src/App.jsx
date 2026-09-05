@@ -80,6 +80,17 @@ export default function App() {
     loadPatientList();
   }, [fetchHealth, loadPatientList]);
 
+  useEffect(() => {
+    if (!isTelemetryModalOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setIsTelemetryModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isTelemetryModalOpen]);
+
   // Memoized aggregated medications list across all registered patients
   const allMeds = useMemo(() => {
     return (patients || []).flatMap((p) =>
@@ -504,16 +515,27 @@ export default function App() {
       {/* Developer Telemetry Dialog (Demoted from primary view) */}
       {isTelemetryModalOpen && (
         <div className="modal-overlay" onClick={() => setIsTelemetryModalOpen(false)}>
-          <div className="modal-dialog" style={{ maxWidth: '620px' }} onClick={(e) => e.stopPropagation()}>
+          <div
+            className="modal-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="telemetry-modal-title"
+            style={{ maxWidth: '620px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="modal-header">
               <div className="modal-title-group">
                 <Server size={18} color="#0284c7" />
                 <div>
-                  <h3 className="modal-title">System Infrastructure Status</h3>
+                  <h3 id="telemetry-modal-title" className="modal-title">System Infrastructure Status</h3>
                   <p className="modal-subtitle">Phase 1 & Phase 2 Full-Stack Verification</p>
                 </div>
               </div>
-              <button className="modal-close-btn" onClick={() => setIsTelemetryModalOpen(false)}>
+              <button
+                className="modal-close-btn"
+                aria-label="Close modal"
+                onClick={() => setIsTelemetryModalOpen(false)}
+              >
                 <X size={18} />
               </button>
             </div>

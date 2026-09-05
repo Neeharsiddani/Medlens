@@ -15,15 +15,17 @@ import ExtractionReviewModal from '../ExtractionReviewModal';
 export default function ReportsView({ onOpenUpload, patients }) {
   const [realReports, setRealReports] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [selectedReportId, setSelectedReportId] = useState(null);
 
   const loadAllReports = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await getGlobalReports({ limit: 100 });
       setRealReports(res.reports || []);
     } catch (err) {
-      console.error('Failed to load clinical reports:', err);
+      setError(err.message || 'Failed to load clinical reports.');
     } finally {
       setLoading(false);
     }
@@ -64,6 +66,33 @@ export default function ReportsView({ onOpenUpload, patients }) {
           <strong>Report Provenance Architecture:</strong> Uploaded medical documents are hashed with SHA-256 and parsed through schema-constrained extraction. Every extracted value is marked <span className="provenance-tag"><span className="provenance-dot"></span> REPORT_EXTRACTED</span> and starts as Unverified.
         </div>
       </div>
+
+      {error && (
+        <div
+          role="alert"
+          style={{
+            padding: '0.85rem 1.25rem',
+            backgroundColor: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: '10px',
+            color: '#dc2626',
+            fontSize: '0.875rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}
+        >
+          <AlertTriangle size={18} />
+          <span>{error}</span>
+          <button
+            onClick={loadAllReports}
+            className="btn btn-secondary"
+            style={{ marginLeft: 'auto', padding: '0.25rem 0.6rem', fontSize: '0.78rem' }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="empty-state-box" style={{ padding: '3rem' }}>

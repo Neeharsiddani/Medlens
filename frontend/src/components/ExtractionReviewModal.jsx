@@ -108,12 +108,26 @@ export default function ExtractionReviewModal({ reportId, isOpen, onClose, onUpd
     }
   };
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
         className="modal-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="extraction-review-modal-title"
         style={{ maxWidth: '1020px', width: '95vw', height: '90vh' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -137,7 +151,7 @@ export default function ExtractionReviewModal({ reportId, isOpen, onClose, onUpd
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                <h3 className="modal-title">
+                <h3 id="extraction-review-modal-title" className="modal-title">
                   {report ? report.original_filename : 'Medical Report Review'}
                 </h3>
                 {report && (
@@ -159,7 +173,7 @@ export default function ExtractionReviewModal({ reportId, isOpen, onClose, onUpd
               </p>
             </div>
           </div>
-          <button className="modal-close-btn" onClick={onClose}>
+          <button className="modal-close-btn" aria-label="Close modal" onClick={onClose}>
             <X size={18} />
           </button>
         </div>
@@ -167,7 +181,7 @@ export default function ExtractionReviewModal({ reportId, isOpen, onClose, onUpd
         {/* Body */}
         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {loading ? (
-            <div className="empty-state-box" style={{ padding: '3rem' }}>
+            <div className="empty-state-box" role="status" aria-live="polite" style={{ padding: '3rem' }}>
               <div className="animate-spin" style={{ color: '#0284c7', marginBottom: '0.75rem' }}>
                 <Clock size={32} />
               </div>

@@ -197,9 +197,28 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
     }
   };
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && !submitting) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose, submitting]);
+
+  if (!isOpen) return null;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="patient-form-modal-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Header */}
         <div className="modal-header">
           <div className="modal-title-group">
@@ -218,13 +237,18 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
               <User size={18} />
             </div>
             <div>
-              <h3 className="modal-title">
+              <h3 id="patient-form-modal-title" className="modal-title">
                 {isEdit ? `Edit Intake: ${patient.patient_identifier}` : 'New Patient Clinical Intake'}
               </h3>
               <p className="modal-subtitle">Structured clinical intake baseline</p>
             </div>
           </div>
-          <button className="modal-close-btn" onClick={onClose} title="Close">
+          <button
+            className="modal-close-btn"
+            onClick={onClose}
+            aria-label="Close modal"
+            title="Close"
+          >
             <X size={18} />
           </button>
         </div>
@@ -251,6 +275,7 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
         {/* Error Alert */}
         {formError && (
           <div
+            role="alert"
             style={{
               margin: '1rem 1.5rem 0 1.5rem',
               padding: '0.75rem 1rem',
@@ -281,7 +306,10 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                  <label
+                    htmlFor="full-name-input"
+                    style={{ display: 'block', fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}
+                  >
                     Full Legal Name *
                   </label>
                   <input
@@ -296,7 +324,10 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                  <label
+                    htmlFor="patient-id-input"
+                    style={{ display: 'block', fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}
+                  >
                     Clinical ID / MRN <span style={{ color: 'var(--text-muted)' }}>(Auto-generated if empty)</span>
                   </label>
                   <input
@@ -310,7 +341,10 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                  <label
+                    htmlFor="dob-input"
+                    style={{ display: 'block', fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}
+                  >
                     Date of Birth
                   </label>
                   <input
@@ -324,7 +358,10 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                  <label
+                    htmlFor="age-input"
+                    style={{ display: 'block', fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}
+                  >
                     Age (years)
                   </label>
                   <input
@@ -340,7 +377,10 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                  <label
+                    htmlFor="sex-select"
+                    style={{ display: 'block', fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}
+                  >
                     Biological Sex
                   </label>
                   <select

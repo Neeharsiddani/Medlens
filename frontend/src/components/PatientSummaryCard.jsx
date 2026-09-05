@@ -25,7 +25,6 @@ export default function PatientSummaryCard({ patientId, patient, onSummaryUpdate
       const data = await getPatientSummary(patientId);
       setSummary(data);
     } catch (err) {
-      console.error('Failed to load patient summary:', err);
       setError(err.message || 'Failed to retrieve patient summary.');
     } finally {
       setLoading(false);
@@ -48,7 +47,6 @@ export default function PatientSummaryCard({ patientId, patient, onSummaryUpdate
         onSummaryUpdated(newSummary);
       }
     } catch (err) {
-      console.error('Failed to generate summary:', err);
       setError(err.message || 'Failed to generate summary.');
     } finally {
       setGenerating(false);

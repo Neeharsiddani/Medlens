@@ -9,6 +9,7 @@ import {
   Eye,
   RefreshCw,
   HelpCircle,
+  AlertTriangle,
 } from 'lucide-react';
 import { getGlobalLabResults } from '../../api/reports';
 import ExtractionReviewModal from '../ExtractionReviewModal';
@@ -20,15 +21,17 @@ export default function LabResultsView({ patients }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [labs, setLabs] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [selectedReportId, setSelectedReportId] = useState(null);
 
   const loadAllLabs = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await getGlobalLabResults({ limit: 200 });
       setLabs(res.labs || []);
     } catch (err) {
-      console.error('Failed to load lab results:', err);
+      setError(err.message || 'Failed to load lab results.');
     } finally {
       setLoading(false);
     }
@@ -82,6 +85,33 @@ export default function LabResultsView({ patients }) {
           <strong>Deterministic Clinical Classification:</strong> LOW, NORMAL, and HIGH statuses are calculated exclusively via deterministic application logic using the reference ranges printed on the source report. The engine never guesses or queries external knowledge bases.
         </div>
       </div>
+
+      {error && (
+        <div
+          role="alert"
+          style={{
+            padding: '0.85rem 1.25rem',
+            backgroundColor: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: '10px',
+            color: '#dc2626',
+            fontSize: '0.875rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}
+        >
+          <AlertTriangle size={18} />
+          <span>{error}</span>
+          <button
+            onClick={loadAllLabs}
+            className="btn btn-secondary"
+            style={{ marginLeft: 'auto', padding: '0.25rem 0.6rem', fontSize: '0.78rem' }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Filter Toolbar */}
       <div

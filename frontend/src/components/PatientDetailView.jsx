@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   ArrowLeft,
   Edit2,
@@ -34,6 +34,65 @@ export default function PatientDetailView({ patientId, onBack, onEdit, onOpenUpl
   const [loadingReports, setLoadingReports] = useState(false);
   const [reviewReportId, setReviewReportId] = useState(null);
   const [allLabs, setAllLabs] = useState([]);
+
+  // Memoized chronological audit timeline events
+  const timelineEvents = useMemo(() => {
+    if (!patient) return [];
+    const events = [];
+
+    // 1. Intake Event
+    if (patient.created_at) {
+      events.push({
+        id: 'intake',
+        date: new Date(patient.created_at),
+        title: 'Baseline Clinical Intake Documented',
+        type: 'INTAKE',
+        badge: 'USER_PROVIDED',
+        badgeStyle: { backgroundColor: '#f1f5f9', color: '#475569', borderColor: '#e2e8f0' },
+        desc: `Demographics, presenting complaints (${patient.symptoms?.length || 0} symptom${patient.symptoms?.length === 1 ? '' : 's'}), conditions, and active medications registered.`,
+      });
+    }
+
+    // 2. Report Upload Events
+    (reports || []).forEach((rep) => {
+      events.push({
+        id: `report-${rep.id}`,
+        date: new Date(rep.uploaded_at),
+        title: `Clinical Report Ingested: ${rep.original_filename}`,
+        type: 'REPORT',
+        badge: rep.extraction_method === 'GEMINI_AI'
+          ? `Gemini AI · ${rep.extraction_model || 'gemini-2.5-flash'}`
+          : rep.extraction_method === 'LOCAL_DETERMINISTIC'
+          ? 'Deterministic Local Parser · Non-AI'
+          : 'REPORT_EXTRACTED',
+        badgeStyle: rep.extraction_method === 'GEMINI_AI'
+          ? { backgroundColor: '#f5f3ff', color: '#6d28d9', borderColor: '#ddd6fe' }
+          : rep.extraction_method === 'LOCAL_DETERMINISTIC'
+          ? { backgroundColor: '#f0f9ff', color: '#0369a1', borderColor: '#bae6fd' }
+          : { backgroundColor: '#f8fafc', color: '#475569', borderColor: '#e2e8f0' },
+        desc: `Type: ${rep.report_type || 'OTHER'} • Size: ${(rep.file_size / 1024).toFixed(1)} KB • Status: ${rep.processing_status}`,
+        reportId: rep.id,
+      });
+    });
+
+    // 3. Verified Lab Events
+    (allLabs || []).filter((l) => l.verification_status === 'VERIFIED' && l.verified_at).forEach((l) => {
+      events.push({
+        id: `verified-lab-${l.id}`,
+        date: new Date(l.verified_at),
+        title: `Lab Result Clinician Verified: ${l.test_name}`,
+        type: 'VERIFICATION',
+        badge: 'USER_VERIFIED',
+        badgeStyle: { backgroundColor: '#f0fdf4', color: '#15803d', borderColor: '#bbf7d0' },
+        desc: `Verified Value: ${l.verified_value || l.value_raw} ${l.unit || ''} • Status: ${l.verified_classification || l.reference_range_status}`,
+        reportId: l.report_id,
+      });
+    });
+
+    // Sort newest first
+    events.sort((a, b) => b.date - a.date);
+    return events;
+  }, [patient, reports, allLabs]);
 
   const loadPatient = async () => {
     setLoading(true);
@@ -71,7 +130,7 @@ export default function PatientDetailView({ patientId, onBack, onEdit, onOpenUpl
       );
       setAllLabs(labDetails.flat());
     } catch (err) {
-      console.error('Failed to load patient reports:', err);
+      setError(err.message || 'Failed to load patient reports.');
     } finally {
       setLoadingReports(false);
     }
@@ -900,72 +959,17 @@ export default function PatientDetailView({ patientId, onBack, onEdit, onOpenUpl
       )}
 
       {/* TAB 5: TIMELINE */}
-      {activeTab === 'timeline' && (() => {
-        const events = [];
+      {activeTab === 'timeline' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>Clinical Chronology & Encounters</h3>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
+              Auditable sequence of intake, document ingestions, and clinician verifications
+            </p>
+          </div>
 
-        // 1. Intake Event
-        if (patient.created_at) {
-          events.push({
-            id: 'intake',
-            date: new Date(patient.created_at),
-            title: 'Baseline Clinical Intake Documented',
-            type: 'INTAKE',
-            badge: 'USER_PROVIDED',
-            badgeStyle: { backgroundColor: '#f1f5f9', color: '#475569', borderColor: '#e2e8f0' },
-            desc: `Demographics, presenting complaints (${patient.symptoms?.length || 0} symptom${patient.symptoms?.length === 1 ? '' : 's'}), conditions, and active medications registered.`,
-          });
-        }
-
-        // 2. Report Upload Events
-        (reports || []).forEach((rep) => {
-          events.push({
-            id: `report-${rep.id}`,
-            date: new Date(rep.uploaded_at),
-            title: `Clinical Report Ingested: ${rep.original_filename}`,
-            type: 'REPORT',
-            badge: rep.extraction_method === 'GEMINI_AI'
-              ? `Gemini AI · ${rep.extraction_model || 'gemini-2.5-flash'}`
-              : rep.extraction_method === 'LOCAL_DETERMINISTIC'
-              ? 'Deterministic Local Parser · Non-AI'
-              : 'REPORT_EXTRACTED',
-            badgeStyle: rep.extraction_method === 'GEMINI_AI'
-              ? { backgroundColor: '#f5f3ff', color: '#6d28d9', borderColor: '#ddd6fe' }
-              : rep.extraction_method === 'LOCAL_DETERMINISTIC'
-              ? { backgroundColor: '#f0f9ff', color: '#0369a1', borderColor: '#bae6fd' }
-              : { backgroundColor: '#f8fafc', color: '#475569', borderColor: '#e2e8f0' },
-            desc: `Type: ${rep.report_type || 'OTHER'} • Size: ${(rep.file_size / 1024).toFixed(1)} KB • Status: ${rep.processing_status}`,
-            reportId: rep.id,
-          });
-        });
-
-        // 3. Verified Lab Events
-        (allLabs || []).filter((l) => l.verification_status === 'VERIFIED' && l.verified_at).forEach((l) => {
-          events.push({
-            id: `verified-lab-${l.id}`,
-            date: new Date(l.verified_at),
-            title: `Lab Result Clinician Verified: ${l.test_name}`,
-            type: 'VERIFICATION',
-            badge: 'USER_VERIFIED',
-            badgeStyle: { backgroundColor: '#f0fdf4', color: '#15803d', borderColor: '#bbf7d0' },
-            desc: `Verified Value: ${l.verified_value || l.value_raw} ${l.unit || ''} • Status: ${l.verified_classification || l.reference_range_status}`,
-            reportId: l.report_id,
-          });
-        });
-
-        // Sort newest first
-        events.sort((a, b) => b.date - a.date);
-
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>Clinical Chronology & Encounters</h3>
-              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
-                Auditable sequence of intake, document ingestions, and clinician verifications
-              </p>
-            </div>
-
-            <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              {events.map((evt, idx) => (
+          <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {timelineEvents.map((evt, idx) => (
                 <div key={evt.id} style={{ display: 'flex', gap: '1rem', position: 'relative' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <div
@@ -979,11 +983,11 @@ export default function PatientDetailView({ patientId, onBack, onEdit, onOpenUpl
                         marginTop: '2px',
                       }}
                     />
-                    {idx < events.length - 1 && (
+                    {idx < timelineEvents.length - 1 && (
                       <div style={{ width: '2px', flex: 1, backgroundColor: '#e2e8f0', margin: '0.35rem 0' }} />
                     )}
                   </div>
-                  <div style={{ flex: 1, paddingBottom: idx < events.length - 1 ? '1.25rem' : '0' }}>
+                  <div style={{ flex: 1, paddingBottom: idx < timelineEvents.length - 1 ? '1.25rem' : '0' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
                       <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{evt.title}</strong>
                       <span
@@ -1014,8 +1018,7 @@ export default function PatientDetailView({ patientId, onBack, onEdit, onOpenUpl
               ))}
             </div>
           </div>
-        );
-      })()}
+        )}
 
       {/* Clinician Extraction Review Modal (Phase 3) */}
       {reviewReportId && (

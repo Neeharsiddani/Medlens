@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   FileUp,
@@ -21,52 +21,67 @@ export default function UploadReportModal({ isOpen, onClose, patients, preselect
   const [uploadStep, setUploadStep] = useState('');
   const [error, setError] = useState(null);
 
+  useEffect(() => {
+    if (preselectedPatient) {
+      setSelectedPatientId(preselectedPatient.id);
+    }
+  }, [preselectedPatient]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && !uploading) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose, uploading]);
+
   if (!isOpen) return null;
 
   const handleFileChange = (e) => {
-    setError(null);
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      if (file.size > 25 * 1024 * 1024) {
-        setError('File exceeds the 25MB limit.');
-        return;
-      }
-      setSelectedFile(file);
+      setSelectedFile(e.target.files[0]);
+      setError(null);
     }
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
-    setError(null);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      if (file.size > 25 * 1024 * 1024) {
-        setError('File exceeds the 25MB limit.');
-        return;
-      }
-      setSelectedFile(file);
+      setSelectedFile(e.dataTransfer.files[0]);
+      setError(null);
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedFile || !selectedPatientId) return;
+    if (!selectedFile) {
+      setError('Please select a medical report file to upload.');
+      return;
+    }
+    if (!selectedPatientId) {
+      setError('Please select a patient to associate with this report.');
+      return;
+    }
 
     setUploading(true);
     setError(null);
-    setUploadStep('Uploading and processing medical report with structured extraction...');
+    setUploadStep('Calculating document hash & uploading...');
 
     try {
-      const result = await uploadReport(selectedPatientId, selectedFile, true);
-      setUploading(false);
-      setSelectedFile(null);
-      setUploadStep('');
-      onClose();
+      setUploadStep('Executing structured data extraction...');
+      const createdReport = await uploadReport(selectedPatientId, selectedFile, true);
+      
+      setUploadStep('Extraction completed successfully.');
       if (onSuccess) {
-        onSuccess(result);
+        onSuccess(createdReport);
       }
+      onClose();
     } catch (err) {
       setError(err.message || 'Failed to upload and process report.');
+    } finally {
       setUploading(false);
       setUploadStep('');
     }
@@ -74,7 +89,13 @@ export default function UploadReportModal({ isOpen, onClose, patients, preselect
 
   return (
     <div className="modal-overlay" onClick={uploading ? undefined : onClose}>
-      <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="upload-report-modal-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <div className="modal-title-group">
             <div
@@ -92,11 +113,16 @@ export default function UploadReportModal({ isOpen, onClose, patients, preselect
               <FileUp size={18} />
             </div>
             <div>
-              <h3 className="modal-title">Upload Medical Report</h3>
+              <h3 id="upload-report-modal-title" className="modal-title">Upload Medical Report</h3>
               <p className="modal-subtitle">Phase 3 Document Ingestion & Structured Extraction</p>
             </div>
           </div>
-          <button className="modal-close-btn" disabled={uploading} onClick={onClose}>
+          <button
+            className="modal-close-btn"
+            aria-label="Close modal"
+            disabled={uploading}
+            onClick={onClose}
+          >
             <X size={18} />
           </button>
         </div>
@@ -124,10 +150,14 @@ export default function UploadReportModal({ isOpen, onClose, patients, preselect
           <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {/* Patient Selection */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+              <label
+                htmlFor="upload-patient-select"
+                style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}
+              >
                 Associate with Patient *
               </label>
               <select
+                id="upload-patient-select"
                 className="input select"
                 value={selectedPatientId}
                 onChange={(e) => setSelectedPatientId(e.target.value)}
@@ -203,6 +233,8 @@ export default function UploadReportModal({ isOpen, onClose, patients, preselect
             {/* Progress / Step Feedback */}
             {uploading && (
               <div
+                role="status"
+                aria-live="polite"
                 style={{
                   padding: '0.85rem 1rem',
                   borderRadius: '8px',
@@ -223,6 +255,7 @@ export default function UploadReportModal({ isOpen, onClose, patients, preselect
             {/* Error Display */}
             {error && (
               <div
+                role="alert"
                 style={{
                   padding: '0.75rem 1rem',
                   borderRadius: '8px',

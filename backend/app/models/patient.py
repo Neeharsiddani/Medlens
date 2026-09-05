@@ -39,7 +39,7 @@ class Patient(Base):
     # Provenance semantics (distinguishes USER_PROVIDED from future REPORT_EXTRACTED)
     provenance_tag = Column(String(50), nullable=False, default="USER_PROVIDED")
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
     updated_at = Column(
         DateTime,
         default=lambda: datetime.now(timezone.utc),
