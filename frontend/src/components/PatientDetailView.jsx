@@ -22,6 +22,7 @@ import {
 import { getPatientById, deletePatient } from '../api/patients';
 import { listPatientReports, getReportExtraction } from '../api/reports';
 import ExtractionReviewModal from './ExtractionReviewModal';
+import PatientSummaryCard from './PatientSummaryCard';
 
 export default function PatientDetailView({ patientId, onBack, onEdit, onOpenUpload }) {
   const [patient, setPatient] = useState(null);
@@ -500,28 +501,12 @@ export default function PatientDetailView({ patientId, onBack, onEdit, onOpenUpl
             </p>
           </div>
 
-          {/* AI Clinical Summary Placeholder (Phase 3 Preparation) */}
-          <div
-            style={{
-              padding: '1.25rem',
-              borderRadius: '12px',
-              backgroundColor: '#f5f3ff',
-              border: '1px solid #ddd6fe',
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '0.85rem',
-            }}
-          >
-            <Sparkles size={20} color="#7c3aed" style={{ flexShrink: 0, marginTop: '0.15rem' }} />
-            <div>
-              <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#5b21b6' }}>
-                AI Patient Synthesis Summary (Phase 3 Feature)
-              </div>
-              <p style={{ fontSize: '0.82rem', color: '#6d28d9', margin: '0.25rem 0 0 0', lineHeight: 1.5 }}>
-                In Phase 3, once medical reports (PDF/OCR) are uploaded and processed, MedLens will synthesize scattered clinical records, reconcile lab values, and generate an audited clinical summary with clickable bounding-box provenance.
-              </p>
-            </div>
-          </div>
+          {/* AI-Powered Patient-Friendly Summary (Phase 5) */}
+          <PatientSummaryCard
+            patientId={patient.id}
+            patient={patient}
+            onSummaryUpdated={() => loadPatient()}
+          />
         </div>
       )}
 
@@ -693,14 +678,24 @@ export default function PatientDetailView({ patientId, onBack, onEdit, onOpenUpl
                     <th>Result</th>
                     <th>Unit</th>
                     <th>Reference Range</th>
+                    <th>Range Status</th>
                     <th>Source Document</th>
                     <th>Provenance</th>
-                    <th>Status</th>
+                    <th>Verification</th>
                     <th style={{ textAlign: 'right' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {allLabs.map((lab) => (
+                  {allLabs.map((lab) => {
+                    const activeRangeStatus = lab.current_classification || lab.reference_range_status;
+                    const rangeBadgeClass = 
+                      activeRangeStatus === 'LOW' ? 'status-badge low' :
+                      activeRangeStatus === 'NORMAL' ? 'status-badge normal' :
+                      activeRangeStatus === 'HIGH' ? 'status-badge high' :
+                      activeRangeStatus === 'NO_RANGE_AVAILABLE' ? 'status-badge no-range' :
+                      activeRangeStatus ? 'status-badge undetermined' : '';
+
+                    return (
                     <tr key={lab.id}>
                       <td>
                         <strong style={{ color: 'var(--text-primary)' }}>{lab.test_name}</strong>
@@ -730,6 +725,15 @@ export default function PatientDetailView({ patientId, onBack, onEdit, onOpenUpl
                           <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.78rem' }}>
                             Not in report
                           </span>
+                        )}
+                      </td>
+                      <td>
+                        {activeRangeStatus ? (
+                          <span className={rangeBadgeClass} style={{ fontSize: '0.72rem' }}>
+                            {activeRangeStatus === 'NO_RANGE_AVAILABLE' ? 'NO RANGE' : activeRangeStatus}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>—</span>
                         )}
                       </td>
                       <td>
@@ -769,7 +773,8 @@ export default function PatientDetailView({ patientId, onBack, onEdit, onOpenUpl
                         </button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

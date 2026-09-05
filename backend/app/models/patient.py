@@ -50,6 +50,9 @@ class Patient(Base):
     # Medical reports relationship (Phase 3)
     reports = relationship("MedicalReport", back_populates="patient", cascade="all, delete-orphan")
 
+    # Patient AI summaries relationship (Phase 5)
+    summaries = relationship("PatientSummary", back_populates="patient", cascade="all, delete-orphan", order_by="desc(PatientSummary.generated_at)")
+
     # Compatibility aliases for Phase 1 code
     @property
     def name(self) -> str:

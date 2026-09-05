@@ -101,9 +101,9 @@ body {
 }
 
 .navbar-top-row {
-  max-width: 1280px;
+  max-width: 1560px;
   margin: 0 auto;
-  padding: 0.75rem 1.5rem;
+  padding: 0.75rem 2rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -847,6 +847,26 @@ h1, h2, h3, h4, h5, h6 {
 
 .status-dot.checking {
   background-color: var(--status-review);
+}
+
+/* Phase 5 — AI-Powered Patient-Friendly Summary Card Styles */
+.patient-summary-container {
+  transition: var(--transition-normal);
+  border: 1px solid #e0e7ff;
+}
+
+.patient-summary-container:hover {
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.07);
+}
+
+.patient-summary-narrative {
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: var(--text-primary);
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1.1rem 1.25rem;
 }
 
 /* Responsive adjustments */
