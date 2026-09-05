@@ -55,7 +55,6 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
       setAllergies(patient.allergies || []);
       setMedications(patient.medications || []);
     } else {
-      // Reset defaults
       setFullName('');
       setPatientIdentifier('');
       setDateOfBirth('');
@@ -154,9 +153,8 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
     e.preventDefault();
     setFormError(null);
 
-    // Client validation
     if (!fullName.trim()) {
-      setFormError('Patient full name is required.');
+      setFormError('Patient legal name is required.');
       return;
     }
 
@@ -166,7 +164,7 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
     }
 
     if (age !== '' && (Number(age) < 0 || Number(age) > 150)) {
-      setFormError('Age must be between 0 and 150.');
+      setFormError('Age must be between 0 and 150 years.');
       return;
     }
 
@@ -193,7 +191,7 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
       onSaved();
       onClose();
     } catch (err) {
-      setFormError(err.message || 'An error occurred while saving the patient record.');
+      setFormError(err.message || 'Failed to save patient intake record.');
     } finally {
       setSubmitting(false);
     }
@@ -201,53 +199,91 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-dialog clinical-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
         {/* Modal Header */}
         <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div className="card-icon-wrap" style={{ width: '36px', height: '36px' }}>
+          <div className="modal-title-group">
+            <div
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                backgroundColor: '#f0f9ff',
+                color: '#0284c7',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
               <User size={18} />
             </div>
             <div>
               <h3 className="modal-title">
                 {isEdit ? `Edit Intake: ${patient.patient_identifier}` : 'New Patient Clinical Intake'}
               </h3>
-              <p className="modal-subtitle">Phase 2 • Structured Baseline Intake</p>
+              <p className="modal-subtitle">Structured clinical intake baseline</p>
             </div>
           </div>
-          <button className="modal-close-btn" onClick={onClose}>
-            <X size={20} />
+          <button className="modal-close-btn" onClick={onClose} title="Close">
+            <X size={18} />
           </button>
         </div>
 
-        {/* Provenance Notice */}
-        <div className="modal-provenance-bar">
+        {/* Provenance Notice Bar */}
+        <div
+          style={{
+            backgroundColor: '#f0f9ff',
+            borderBottom: '1px solid #bae6fd',
+            padding: '0.65rem 1.5rem',
+            fontSize: '0.8rem',
+            color: '#0369a1',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}
+        >
           <ShieldCheck size={16} />
           <span>
-            <strong>Data Provenance Notice:</strong> All information recorded in this intake form is stored with provenance tag <code>USER_PROVIDED</code>.
+            <strong>Data Provenance Notice:</strong> All intake entries will be recorded with <code>USER_PROVIDED</code> provenance semantics.
           </span>
         </div>
 
-        {/* Error Display */}
+        {/* Error Alert */}
         {formError && (
-          <div className="modal-error-alert">
-            <AlertCircle size={18} />
+          <div
+            style={{
+              margin: '1rem 1.5rem 0 1.5rem',
+              padding: '0.75rem 1rem',
+              borderRadius: '8px',
+              backgroundColor: 'var(--status-critical-bg)',
+              border: '1px solid var(--status-critical-border)',
+              color: 'var(--status-critical)',
+              fontSize: '0.82rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+            }}
+          >
+            <AlertCircle size={16} />
             <span>{formError}</span>
           </div>
         )}
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="modal-form">
-          <div className="form-sections-container">
-            {/* Section 1: Demographics & Identity */}
-            <div className="form-section">
-              <div className="section-title">
-                <User size={16} />
-                <span>1. Patient Identity & Demographics</span>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+          <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            {/* 1. Demographics */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                <User size={16} color="#0284c7" />
+                <span>1. Demographics & Identifier</span>
               </div>
-              <div className="form-grid-2">
-                <div className="form-field">
-                  <label htmlFor="full-name-input">Full Name *</label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                    Full Legal Name *
+                  </label>
                   <input
                     id="full-name-input"
                     type="text"
@@ -258,10 +294,10 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
                     required
                   />
                 </div>
-                <div className="form-field">
-                  <label htmlFor="patient-id-input">
-                    Clinical ID / MRN{' '}
-                    <span className="label-hint">(Optional — auto-generated if blank)</span>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                    Clinical ID / MRN <span style={{ color: 'var(--text-muted)' }}>(Auto-generated if empty)</span>
                   </label>
                   <input
                     id="patient-id-input"
@@ -272,8 +308,11 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
                     onChange={(e) => setPatientIdentifier(e.target.value)}
                   />
                 </div>
-                <div className="form-field">
-                  <label htmlFor="dob-input">Date of Birth</label>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                    Date of Birth
+                  </label>
                   <input
                     id="dob-input"
                     type="date"
@@ -283,9 +322,10 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
                     max={new Date().toISOString().split('T')[0]}
                   />
                 </div>
-                <div className="form-field">
-                  <label htmlFor="age-input">
-                    Age (years) <span className="label-hint">(Provide either Age or DOB)</span>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                    Age (years)
                   </label>
                   <input
                     id="age-input"
@@ -298,8 +338,11 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
                     onChange={(e) => setAge(e.target.value)}
                   />
                 </div>
-                <div className="form-field">
-                  <label htmlFor="sex-select">Biological Sex</label>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                    Biological Sex
+                  </label>
                   <select
                     id="sex-select"
                     className="input select"
@@ -315,17 +358,18 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
               </div>
             </div>
 
-            {/* Section 2: Presenting Symptoms */}
-            <div className="form-section">
-              <div className="section-title">
-                <Activity size={16} />
+            {/* 2. Presenting Complaints */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                <Activity size={16} color="#0284c7" />
                 <span>2. Presenting Complaints & Symptoms</span>
               </div>
-              <div className="multi-builder-row">
+
+              <div className="builder-row">
                 <input
                   type="text"
                   className="input"
-                  placeholder="Symptom (e.g. Dyspnea, Fatigue)"
+                  placeholder="Symptom (e.g. Chest tightness)"
                   value={symptomInput.symptom}
                   onChange={(e) => setSymptomInput({ ...symptomInput, symptom: e.target.value })}
                   onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddSymptom(e))}
@@ -333,16 +377,16 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
                 <input
                   type="text"
                   className="input"
-                  placeholder="Duration (e.g. 4 days)"
+                  style={{ maxWidth: '140px' }}
+                  placeholder="Duration (e.g. 3 days)"
                   value={symptomInput.duration}
                   onChange={(e) => setSymptomInput({ ...symptomInput, duration: e.target.value })}
-                  style={{ maxWidth: '140px' }}
                 />
                 <select
                   className="input select"
+                  style={{ maxWidth: '120px' }}
                   value={symptomInput.severity}
                   onChange={(e) => setSymptomInput({ ...symptomInput, severity: e.target.value })}
-                  style={{ maxWidth: '120px' }}
                 >
                   <option value="">Severity</option>
                   <option value="Mild">Mild</option>
@@ -359,21 +403,28 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
                 </button>
               </div>
 
-              {/* Added symptoms pill list */}
-              <div className="structured-items-cloud">
+              <div className="chips-cloud">
                 {symptoms.length === 0 ? (
-                  <span className="text-muted">No symptoms added.</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No symptoms added.</span>
                 ) : (
                   symptoms.map((item, idx) => (
-                    <div key={idx} className="builder-pill">
-                      <strong>{item.symptom}</strong>
-                      {item.duration && <span className="pill-sub">({item.duration})</span>}
-                      {item.severity && <span className="pill-badge">{item.severity}</span>}
-                      <button
-                        type="button"
-                        className="pill-remove-btn"
-                        onClick={() => handleRemoveSymptom(idx)}
-                      >
+                    <div key={idx} className="clinical-chip">
+                      <span>{item.symptom}</span>
+                      {item.duration && <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>({item.duration})</span>}
+                      {item.severity && (
+                        <span
+                          style={{
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                            padding: '0.05rem 0.35rem',
+                            borderRadius: '4px',
+                            backgroundColor: '#e2e8f0',
+                          }}
+                        >
+                          {item.severity}
+                        </span>
+                      )}
+                      <button type="button" className="chip-remove-btn" onClick={() => handleRemoveSymptom(idx)}>
                         ×
                       </button>
                     </div>
@@ -382,17 +433,18 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
               </div>
             </div>
 
-            {/* Section 3: Medical Conditions */}
-            <div className="form-section">
-              <div className="section-title">
-                <HeartPulse size={16} />
+            {/* 3. Medical Conditions */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                <HeartPulse size={16} color="#0284c7" />
                 <span>3. Existing Medical Conditions</span>
               </div>
-              <div className="multi-builder-row">
+
+              <div className="builder-row">
                 <input
                   type="text"
                   className="input"
-                  placeholder="Condition (e.g. Hypertension, Asthma)"
+                  placeholder="Condition (e.g. Hypertension)"
                   value={conditionInput.condition}
                   onChange={(e) => setConditionInput({ ...conditionInput, condition: e.target.value })}
                   onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddCondition(e))}
@@ -400,10 +452,10 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
                 <input
                   type="text"
                   className="input"
-                  placeholder="Diagnosed Year (e.g. 2019)"
+                  style={{ maxWidth: '160px' }}
+                  placeholder="Year (e.g. 2018)"
                   value={conditionInput.diagnosed_year}
                   onChange={(e) => setConditionInput({ ...conditionInput, diagnosed_year: e.target.value })}
-                  style={{ maxWidth: '160px' }}
                 />
                 <button
                   type="button"
@@ -415,19 +467,15 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
                 </button>
               </div>
 
-              <div className="structured-items-cloud">
+              <div className="chips-cloud">
                 {conditions.length === 0 ? (
-                  <span className="text-muted">No conditions added.</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No medical conditions added.</span>
                 ) : (
                   conditions.map((item, idx) => (
-                    <div key={idx} className="builder-pill">
-                      <strong>{item.condition}</strong>
-                      {item.diagnosed_year && <span className="pill-sub">({item.diagnosed_year})</span>}
-                      <button
-                        type="button"
-                        className="pill-remove-btn"
-                        onClick={() => handleRemoveCondition(idx)}
-                      >
+                    <div key={idx} className="clinical-chip">
+                      <span>{item.condition}</span>
+                      {item.diagnosed_year && <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>({item.diagnosed_year})</span>}
+                      <button type="button" className="chip-remove-btn" onClick={() => handleRemoveCondition(idx)}>
                         ×
                       </button>
                     </div>
@@ -436,17 +484,18 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
               </div>
             </div>
 
-            {/* Section 4: Allergies */}
-            <div className="form-section">
-              <div className="section-title">
-                <AlertTriangle size={16} />
+            {/* 4. Allergies */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                <AlertTriangle size={16} color="#d97706" />
                 <span>4. Known Allergies</span>
               </div>
-              <div className="multi-builder-row">
+
+              <div className="builder-row">
                 <input
                   type="text"
                   className="input"
-                  placeholder="Allergen (e.g. Penicillin, Latex)"
+                  placeholder="Allergen (e.g. Penicillin)"
                   value={allergyInput.allergen}
                   onChange={(e) => setAllergyInput({ ...allergyInput, allergen: e.target.value })}
                   onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddAllergy(e))}
@@ -460,9 +509,9 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
                 />
                 <select
                   className="input select"
+                  style={{ maxWidth: '120px' }}
                   value={allergyInput.severity}
                   onChange={(e) => setAllergyInput({ ...allergyInput, severity: e.target.value })}
-                  style={{ maxWidth: '120px' }}
                 >
                   <option value="">Severity</option>
                   <option value="Mild">Mild</option>
@@ -479,20 +528,15 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
                 </button>
               </div>
 
-              <div className="structured-items-cloud">
+              <div className="chips-cloud">
                 {allergies.length === 0 ? (
-                  <span className="text-muted">No allergies recorded.</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No allergies recorded.</span>
                 ) : (
                   allergies.map((item, idx) => (
-                    <div key={idx} className="builder-pill allergy-pill">
-                      <strong>{item.allergen}</strong>
-                      {item.reaction && <span className="pill-sub">({item.reaction})</span>}
-                      {item.severity && <span className="pill-badge error-badge">{item.severity}</span>}
-                      <button
-                        type="button"
-                        className="pill-remove-btn"
-                        onClick={() => handleRemoveAllergy(idx)}
-                      >
+                    <div key={idx} className="clinical-chip" style={{ backgroundColor: '#fffbeb', borderColor: '#fde68a' }}>
+                      <span style={{ color: '#92400e', fontWeight: 600 }}>{item.allergen}</span>
+                      {item.reaction && <span style={{ color: '#b45309', fontSize: '0.72rem' }}>({item.reaction})</span>}
+                      <button type="button" className="chip-remove-btn" onClick={() => handleRemoveAllergy(idx)}>
                         ×
                       </button>
                     </div>
@@ -501,13 +545,14 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
               </div>
             </div>
 
-            {/* Section 5: Current Medications */}
-            <div className="form-section">
-              <div className="section-title">
-                <Pill size={16} />
+            {/* 5. Current Medications */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                <Pill size={16} color="#0284c7" />
                 <span>5. Current Active Medications</span>
               </div>
-              <div className="multi-builder-row">
+
+              <div className="builder-row">
                 <input
                   type="text"
                   className="input"
@@ -519,18 +564,18 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
                 <input
                   type="text"
                   className="input"
+                  style={{ maxWidth: '140px' }}
                   placeholder="Dosage (e.g. 10mg)"
                   value={medicationInput.dosage}
                   onChange={(e) => setMedicationInput({ ...medicationInput, dosage: e.target.value })}
-                  style={{ maxWidth: '140px' }}
                 />
                 <input
                   type="text"
                   className="input"
+                  style={{ maxWidth: '140px' }}
                   placeholder="Frequency (e.g. Daily)"
                   value={medicationInput.frequency}
                   onChange={(e) => setMedicationInput({ ...medicationInput, frequency: e.target.value })}
-                  style={{ maxWidth: '140px' }}
                 />
                 <button
                   type="button"
@@ -542,20 +587,16 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
                 </button>
               </div>
 
-              <div className="structured-items-cloud">
+              <div className="chips-cloud">
                 {medications.length === 0 ? (
-                  <span className="text-muted">No active medications recorded.</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No medications recorded.</span>
                 ) : (
                   medications.map((item, idx) => (
-                    <div key={idx} className="builder-pill med-pill">
-                      <strong>{item.name}</strong>
-                      {item.dosage && <span className="pill-sub">{item.dosage}</span>}
-                      {item.frequency && <span className="pill-badge info-badge">{item.frequency}</span>}
-                      <button
-                        type="button"
-                        className="pill-remove-btn"
-                        onClick={() => handleRemoveMedication(idx)}
-                      >
+                    <div key={idx} className="clinical-chip" style={{ backgroundColor: '#f0f9ff', borderColor: '#bae6fd' }}>
+                      <span style={{ color: '#0369a1', fontWeight: 600 }}>{item.name}</span>
+                      {item.dosage && <span style={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }}>{item.dosage}</span>}
+                      {item.frequency && <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>• {item.frequency}</span>}
+                      <button type="button" className="chip-remove-btn" onClick={() => handleRemoveMedication(idx)}>
                         ×
                       </button>
                     </div>
@@ -564,16 +605,16 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
               </div>
             </div>
 
-            {/* Section 6: Other Information */}
-            <div className="form-section">
-              <div className="section-title">
-                <FileText size={16} />
-                <span>6. Other Relevant Clinical Information</span>
+            {/* 6. Other Clinical Information */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                <FileText size={16} color="#0284c7" />
+                <span>6. Other Relevant Information</span>
               </div>
               <textarea
                 className="input textarea"
                 rows={3}
-                placeholder="Enter any additional clinical context, social history, or baseline notes..."
+                placeholder="Enter any additional clinical notes, social history, or baseline observations..."
                 value={otherInformation}
                 onChange={(e) => setOtherInformation(e.target.value)}
               />
@@ -582,22 +623,12 @@ export default function PatientFormModal({ patient, isOpen, onClose, onSaved }) 
 
           {/* Modal Footer */}
           <div className="modal-footer">
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={onClose}
-              disabled={submitting}
-            >
+            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={submitting}>
               Cancel
             </button>
-            <button
-              id="save-patient-submit-btn"
-              type="submit"
-              className="btn btn-primary"
-              disabled={submitting}
-            >
+            <button id="save-patient-submit-btn" type="submit" className="btn btn-primary" disabled={submitting}>
               <Save size={15} />
-              {submitting ? 'Saving Intake Record...' : isEdit ? 'Update Record' : 'Save Patient Intake'}
+              {submitting ? 'Saving Intake...' : isEdit ? 'Update Record' : 'Save Patient Intake'}
             </button>
           </div>
         </form>

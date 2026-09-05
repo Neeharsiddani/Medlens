@@ -13,6 +13,20 @@ from app.schemas.patient import (
     AllergyItem,
     MedicationItem,
 )
+from app.schemas.report import (
+    ReportExtraction,
+    ExtractedLabResult,
+    ExtractedObservation,
+    ExtractedMedication,
+    MedicalReportResponse,
+    MedicalReportDetailResponse,
+    MedicalReportListResponse,
+    MedicalReportUpdate,
+    LabResultResponse,
+    ReportObservationResponse,
+    ReportMedicationResponse,
+    LabResultVerificationUpdate,
+)
 
 __all__ = [
     "BaseSchema",
@@ -27,4 +41,16 @@ __all__ = [
     "ConditionItem",
     "AllergyItem",
     "MedicationItem",
+    "ReportExtraction",
+    "ExtractedLabResult",
+    "ExtractedObservation",
+    "ExtractedMedication",
+    "MedicalReportResponse",
+    "MedicalReportDetailResponse",
+    "MedicalReportListResponse",
+    "MedicalReportUpdate",
+    "LabResultResponse",
+    "ReportObservationResponse",
+    "ReportMedicationResponse",
+    "LabResultVerificationUpdate",
 ]

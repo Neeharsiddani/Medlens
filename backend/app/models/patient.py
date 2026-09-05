@@ -2,6 +2,7 @@
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Date, Text, DateTime, JSON
+from sqlalchemy.orm import relationship
 from app.db.base import Base
 
 
@@ -45,6 +46,9 @@ class Patient(Base):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+
+    # Medical reports relationship (Phase 3)
+    reports = relationship("MedicalReport", back_populates="patient", cascade="all, delete-orphan")
 
     # Compatibility aliases for Phase 1 code
     @property

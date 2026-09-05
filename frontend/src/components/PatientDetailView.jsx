@@ -5,24 +5,33 @@ import {
   Trash2,
   RefreshCw,
   AlertCircle,
-  ShieldCheck,
-  User,
+  FileText,
   Activity,
   HeartPulse,
   AlertTriangle,
   Pill,
-  FileText,
   Calendar,
   Clock,
+  ShieldCheck,
+  FileUp,
+  ExternalLink,
+  Sparkles,
   Info,
-} from 'lucide-react';
+  CheckCircle2,
 import { getPatientById, deletePatient } from '../api/patients';
+import { listPatientReports, getReportExtraction } from '../api/reports';
+import ExtractionReviewModal from './ExtractionReviewModal';
 
-export default function PatientDetailView({ patientId, onBack, onEdit }) {
+export default function PatientDetailView({ patientId, onBack, onEdit, onOpenUpload }) {
   const [patient, setPatient] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'reports' | 'labs' | 'medications' | 'timeline'
   const [deleting, setDeleting] = useState(false);
+  const [reports, setReports] = useState([]);
+  const [loadingReports, setLoadingReports] = useState(false);
+  const [reviewReportId, setReviewReportId] = useState(null);
+  const [allLabs, setAllLabs] = useState([]);
 
   const loadPatient = async () => {
     setLoading(true);
@@ -31,21 +40,54 @@ export default function PatientDetailView({ patientId, onBack, onEdit }) {
       const data = await getPatientById(patientId);
       setPatient(data);
     } catch (err) {
-      setError(err.message || 'Failed to fetch patient record.');
+      setError(err.message || 'Failed to fetch patient chart.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadReports = async (pid) => {
+    setLoadingReports(true);
+    try {
+      const res = await listPatientReports(pid);
+      const repList = res.reports || [];
+      setReports(repList);
+
+      const labsAccumulator = [];
+      for (const rep of repList) {
+        try {
+          const detail = await getReportExtraction(rep.id);
+          if (detail.lab_results && detail.lab_results.length > 0) {
+            detail.lab_results.forEach((lab) => {
+              labsAccumulator.push({
+                ...lab,
+                reportFilename: rep.original_filename,
+                reportDate: rep.report_date,
+              });
+            });
+          }
+        } catch (e) {
+          console.error('Error loading report extraction for labs tab', e);
+        }
+      }
+      setAllLabs(labsAccumulator);
+    } catch (err) {
+      console.error('Failed to load patient reports:', err);
+    } finally {
+      setLoadingReports(false);
     }
   };
 
   useEffect(() => {
     if (patientId) {
       loadPatient();
+      loadReports(patientId);
     }
   }, [patientId]);
 
   const handleDelete = async () => {
     if (!patient) return;
-    if (!window.confirm(`Are you sure you want to permanently delete patient ${patient.patient_identifier} (${patient.full_name})?`)) {
+    if (!window.confirm(`Are you sure you want to permanently delete patient record ${patient.patient_identifier} (${patient.full_name})?`)) {
       return;
     }
 
@@ -61,264 +103,785 @@ export default function PatientDetailView({ patientId, onBack, onEdit }) {
 
   if (loading) {
     return (
-      <div className="detail-loading-state">
-        <RefreshCw size={28} className="animate-spin text-primary" />
-        <span>Loading clinical chart for patient #{patientId}...</span>
+      <div className="empty-state-box" style={{ margin: '2rem 0' }}>
+        <RefreshCw size={28} className="animate-spin text-primary" style={{ color: '#0284c7', marginBottom: '0.75rem' }} />
+        <div className="empty-title">Loading Patient Chart...</div>
+        <div className="empty-desc">Fetching clinical record #{patientId} from the database.</div>
       </div>
     );
   }
 
   if (error || !patient) {
     return (
-      <div className="card error-card">
-        <div className="error-card-content">
-          <AlertCircle size={24} />
-          <div>
-            <h3>Error Loading Patient Record</h3>
-            <p>{error || 'Patient not found.'}</p>
-            <button className="btn btn-secondary" onClick={onBack} style={{ marginTop: '0.75rem' }}>
-              <ArrowLeft size={16} /> Back to Directory
-            </button>
-          </div>
+      <div className="card" style={{ padding: '2rem', border: '1px solid #fecdd3', backgroundColor: '#fff1f2', color: '#e11d48' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+          <AlertCircle size={22} />
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>Error Loading Patient Chart</h3>
         </div>
+        <p style={{ fontSize: '0.875rem', marginBottom: '1.25rem' }}>{error || 'Patient record could not be found.'}</p>
+        <button className="btn btn-secondary" onClick={onBack}>
+          <ArrowLeft size={16} /> Back to Directory
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="patient-detail-container">
-      {/* Detail Top Navigation Toolbar */}
-      <div className="detail-toolbar">
-        <button id="back-to-directory-btn" className="btn btn-secondary" onClick={onBack}>
-          <ArrowLeft size={16} /> Back to Directory
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      {/* 1. Top Navigation & Actions Bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+        <button id="back-to-directory-btn" className="btn btn-secondary btn-sm" onClick={onBack}>
+          <ArrowLeft size={15} /> Back to Patients
         </button>
 
-        <div className="detail-toolbar-actions">
-          <button
-            id="edit-patient-btn"
-            className="btn btn-secondary"
-            onClick={() => onEdit(patient)}
-          >
-            <Edit2 size={16} /> Edit Intake Record
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <button className="btn btn-secondary btn-sm" onClick={() => onOpenUpload(patient)}>
+            <FileUp size={15} /> Upload Report
+          </button>
+          <button id="edit-patient-btn" className="btn btn-secondary btn-sm" onClick={() => onEdit(patient)}>
+            <Edit2 size={15} /> Edit Intake
           </button>
           <button
             id="delete-patient-btn"
-            className="btn btn-danger"
+            className="btn btn-danger btn-sm"
             disabled={deleting}
             onClick={handleDelete}
           >
-            <Trash2 size={16} /> {deleting ? 'Deleting...' : 'Delete Record'}
+            <Trash2 size={15} /> {deleting ? 'Deleting...' : 'Delete'}
           </button>
         </div>
       </div>
 
-      {/* Patient Header Identity Card */}
-      <div className="card patient-header-card">
-        <div className="patient-header-main">
-          <div className="patient-avatar-box">
-            <User size={32} />
+      {/* 2. Patient Header Banner */}
+      <div
+        className="card"
+        style={{
+          padding: '1.5rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1.25rem',
+          backgroundColor: '#ffffff',
+          border: '1px solid var(--border-subtle)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+          <div
+            style={{
+              width: '54px',
+              height: '54px',
+              borderRadius: '12px',
+              backgroundColor: '#f0f9ff',
+              color: '#0284c7',
+              border: '1px solid #bae6fd',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.35rem',
+              fontWeight: 700,
+            }}
+          >
+            {patient.full_name ? patient.full_name.charAt(0).toUpperCase() : 'P'}
           </div>
+
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <h2 className="patient-chart-title">{patient.full_name}</h2>
-              <span className="mrn-badge-large">{patient.patient_identifier}</span>
-              <span className="provenance-pill">
-                <ShieldCheck size={14} />
-                {patient.provenance_tag || 'USER_PROVIDED'}
+              <h2 style={{ fontSize: '1.45rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                {patient.full_name}
+              </h2>
+              <span className="mrn-badge" style={{ fontSize: '0.8rem', padding: '0.2rem 0.55rem' }}>
+                {patient.patient_identifier}
               </span>
+              <div className="provenance-tag" title="Baseline data entered by clinician or patient">
+                <span className="provenance-dot"></span>
+                Patient provided baseline
+              </div>
             </div>
-            <div className="patient-meta-row">
-              <span>
-                <strong>Age:</strong> {patient.age !== null ? `${patient.age} yrs` : 'Not recorded'}
-              </span>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.35rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              <span><strong>Age:</strong> {patient.age !== null ? `${patient.age} years` : 'Unrecorded'}</span>
               <span>•</span>
-              <span>
-                <strong>DOB:</strong> {patient.date_of_birth || 'Not recorded'}
-              </span>
+              <span><strong>Sex:</strong> {patient.sex ? patient.sex.toLowerCase() : 'Unrecorded'}</span>
               <span>•</span>
-              <span>
-                <strong>Sex:</strong>{' '}
-                <span className={`sex-pill sex-${(patient.sex || 'unknown').toLowerCase()}`}>
-                  {patient.sex || 'UNKNOWN'}
-                </span>
-              </span>
+              <span><strong>DOB:</strong> {patient.date_of_birth || 'Not documented'}</span>
             </div>
           </div>
         </div>
 
-        <div className="patient-header-timestamps">
-          <div className="timestamp-item">
-            <Calendar size={14} />
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.3rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <Calendar size={13} />
             <span>Intake Created: {new Date(patient.created_at).toLocaleDateString()}</span>
           </div>
-          <div className="timestamp-item">
-            <Clock size={14} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <Clock size={13} />
             <span>Last Updated: {new Date(patient.updated_at).toLocaleDateString()}</span>
           </div>
         </div>
       </div>
 
-      {/* Provenance Notice Banner */}
-      <div className="scope-banner" style={{ margin: '1.25rem 0' }}>
-        <div className="scope-banner-title">
-          <ShieldCheck size={16} />
-          Clinical Provenance: USER_PROVIDED Baseline
-        </div>
-        <div className="scope-banner-text">
-          All records displayed below were supplied during user intake and are designated as <code>USER_PROVIDED</code>. No clinical reports, OCR extraction, or laboratory classification engines have been executed on this patient record.
-        </div>
+      {/* 3. Clinical Chart Sub-Tabs */}
+      <div style={{ borderBottom: '1px solid var(--border-subtle)', display: 'flex', gap: '0.5rem' }}>
+        <button
+          className={`nav-link-btn ${activeTab === 'overview' ? 'active' : ''}`}
+          onClick={() => setActiveTab('overview')}
+        >
+          Patient Overview
+        </button>
+        <button
+          className={`nav-link-btn ${activeTab === 'reports' ? 'active' : ''}`}
+          onClick={() => setActiveTab('reports')}
+        >
+          Clinical Reports <span className="nav-tab-badge">0</span>
+        </button>
+        <button
+          className={`nav-link-btn ${activeTab === 'labs' ? 'active' : ''}`}
+          onClick={() => setActiveTab('labs')}
+        >
+          Lab Results
+        </button>
+        <button
+          className={`nav-link-btn ${activeTab === 'medications' ? 'active' : ''}`}
+          onClick={() => setActiveTab('medications')}
+        >
+          Medications <span className="nav-tab-badge">{patient.medications ? patient.medications.length : 0}</span>
+        </button>
+        <button
+          className={`nav-link-btn ${activeTab === 'timeline' ? 'active' : ''}`}
+          onClick={() => setActiveTab('timeline')}
+        >
+          Timeline
+        </button>
       </div>
 
-      {/* Structured Sections Grid */}
-      <div className="clinical-sections-grid">
-        {/* 1. PRESENTATION: Symptoms */}
-        <div className="card section-card" id="section-presentation">
-          <div className="section-card-header">
-            <div className="section-title">
-              <Activity size={18} />
-              <span>Presenting Complaints & Symptoms</span>
-            </div>
-            <span className="provenance-pill small">USER_PROVIDED</span>
-          </div>
-          <div className="section-card-body">
-            {!patient.symptoms || patient.symptoms.length === 0 ? (
-              <p className="text-muted">No presenting symptoms recorded.</p>
-            ) : (
-              <div className="structured-items-list">
-                {patient.symptoms.map((item, idx) => (
-                  <div key={idx} className="item-detail-card">
-                    <div className="item-main">
-                      <strong className="item-name">{item.symptom}</strong>
-                      {item.duration && (
-                        <span className="item-meta">Duration: {item.duration}</span>
-                      )}
-                    </div>
-                    {item.severity && (
-                      <span className={`item-badge badge-${item.severity.toLowerCase()}`}>
-                        {item.severity}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+      {/* 4. Tab Contents */}
 
-        {/* 2. MEDICAL HISTORY: Conditions */}
-        <div className="card section-card" id="section-history">
-          <div className="section-card-header">
-            <div className="section-title">
-              <HeartPulse size={18} />
-              <span>Medical History & Conditions</span>
-            </div>
-            <span className="provenance-pill small">USER_PROVIDED</span>
-          </div>
-          <div className="section-card-body">
-            {!patient.existing_conditions || patient.existing_conditions.length === 0 ? (
-              <p className="text-muted">No existing medical conditions recorded.</p>
-            ) : (
-              <div className="structured-items-list">
-                {patient.existing_conditions.map((item, idx) => (
-                  <div key={idx} className="item-detail-card">
-                    <div className="item-main">
-                      <strong className="item-name">{item.condition}</strong>
-                      {item.diagnosed_year && (
-                        <span className="item-meta">Diagnosed: {item.diagnosed_year}</span>
-                      )}
-                      {item.notes && <p className="item-notes">{item.notes}</p>}
-                    </div>
-                  </div>
-                ))}
+      {/* TAB 1: OVERVIEW */}
+      {activeTab === 'overview' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Clinical Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.25rem' }}>
+            {/* Presenting Symptoms */}
+            <div className="card" style={{ padding: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '0.92rem' }}>
+                  <Activity size={17} color="#0284c7" />
+                  <span>Presenting Complaints & Symptoms</span>
+                </div>
+                <span className="provenance-tag">
+                  <span className="provenance-dot"></span> Patient reported
+                </span>
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* 3. ALLERGIES */}
-        <div className="card section-card" id="section-allergies">
-          <div className="section-card-header">
-            <div className="section-title">
-              <AlertTriangle size={18} />
-              <span>Known Allergies & Adverse Reactions</span>
-            </div>
-            <span className="provenance-pill small">USER_PROVIDED</span>
-          </div>
-          <div className="section-card-body">
-            {!patient.allergies || patient.allergies.length === 0 ? (
-              <p className="text-muted">No known drug or environmental allergies recorded.</p>
-            ) : (
-              <div className="structured-items-list">
-                {patient.allergies.map((item, idx) => (
-                  <div key={idx} className="item-detail-card allergy-card">
-                    <div className="item-main">
-                      <strong className="item-name">{item.allergen}</strong>
-                      {item.reaction && (
-                        <span className="item-meta">Reaction: {item.reaction}</span>
-                      )}
-                    </div>
-                    {item.severity && (
-                      <span className={`item-badge badge-${item.severity.toLowerCase()}`}>
-                        {item.severity}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* 4. CURRENT MEDICATIONS */}
-        <div className="card section-card" id="section-medications">
-          <div className="section-card-header">
-            <div className="section-title">
-              <Pill size={18} />
-              <span>Active Current Medications</span>
-            </div>
-            <span className="provenance-pill small">USER_PROVIDED</span>
-          </div>
-          <div className="section-card-body">
-            {!patient.medications || patient.medications.length === 0 ? (
-              <p className="text-muted">No current medications recorded.</p>
-            ) : (
-              <div className="structured-items-list">
-                {patient.medications.map((item, idx) => (
-                  <div key={idx} className="item-detail-card med-card">
-                    <div className="item-main">
-                      <strong className="item-name">{item.name}</strong>
-                      <div className="med-meta-group">
-                        {item.dosage && <span className="med-dosage">Dosage: {item.dosage}</span>}
-                        {item.frequency && (
-                          <span className="med-freq">Frequency: {item.frequency}</span>
+              {!patient.symptoms || patient.symptoms.length === 0 ? (
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '0.5rem 0' }}>
+                  No complaints reported during intake.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {patient.symptoms.map((s, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '0.65rem 0.85rem',
+                        borderRadius: '8px',
+                        backgroundColor: '#f8fafc',
+                        border: '1px solid var(--border-subtle)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <div>
+                        <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>{s.symptom}</strong>
+                        {s.duration && (
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            Duration: {s.duration}
+                          </div>
                         )}
+                      </div>
+                      {s.severity && (
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 600,
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: '12px',
+                            backgroundColor:
+                              s.severity.toLowerCase() === 'severe'
+                                ? '#fff1f2'
+                                : s.severity.toLowerCase() === 'moderate'
+                                ? '#fffbeb'
+                                : '#f0fdf4',
+                            color:
+                              s.severity.toLowerCase() === 'severe'
+                                ? '#e11d48'
+                                : s.severity.toLowerCase() === 'moderate'
+                                ? '#d97706'
+                                : '#16a34a',
+                            border: `1px solid ${
+                              s.severity.toLowerCase() === 'severe'
+                                ? '#fecdd3'
+                                : s.severity.toLowerCase() === 'moderate'
+                                ? '#fde68a'
+                                : '#bbf7d0'
+                            }`,
+                          }}
+                        >
+                          {s.severity}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Medical Conditions */}
+            <div className="card" style={{ padding: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '0.92rem' }}>
+                  <HeartPulse size={17} color="#0284c7" />
+                  <span>Medical History & Conditions</span>
+                </div>
+                <span className="provenance-tag">
+                  <span className="provenance-dot"></span> Patient reported
+                </span>
+              </div>
+
+              {!patient.existing_conditions || patient.existing_conditions.length === 0 ? (
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '0.5rem 0' }}>
+                  No past medical conditions documented.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {patient.existing_conditions.map((c, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '0.65rem 0.85rem',
+                        borderRadius: '8px',
+                        backgroundColor: '#f8fafc',
+                        border: '1px solid var(--border-subtle)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>{c.condition}</strong>
+                        {c.diagnosed_year && (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            Diagnosed: {c.diagnosed_year}
+                          </span>
+                        )}
+                      </div>
+                      {c.notes && (
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                          {c.notes}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Known Allergies */}
+            <div className="card" style={{ padding: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '0.92rem' }}>
+                  <AlertTriangle size={17} color="#d97706" />
+                  <span>Allergies & Adverse Reactions</span>
+                </div>
+                <span className="provenance-tag">
+                  <span className="provenance-dot"></span> Patient reported
+                </span>
+              </div>
+
+              {!patient.allergies || patient.allergies.length === 0 ? (
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '0.5rem 0' }}>
+                  No drug or environmental allergies documented.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {patient.allergies.map((a, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '0.65rem 0.85rem',
+                        borderRadius: '8px',
+                        backgroundColor: '#fffbeb',
+                        border: '1px solid #fde68a',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <div>
+                        <strong style={{ fontSize: '0.88rem', color: '#92400e' }}>{a.allergen}</strong>
+                        {a.reaction && (
+                          <div style={{ fontSize: '0.75rem', color: '#b45309' }}>Reaction: {a.reaction}</div>
+                        )}
+                      </div>
+                      {a.severity && (
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 600,
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: '12px',
+                            backgroundColor: '#ffffff',
+                            color: '#b45309',
+                            border: '1px solid #fde68a',
+                          }}
+                        >
+                          {a.severity}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Current Medications */}
+            <div className="card" style={{ padding: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '0.92rem' }}>
+                  <Pill size={17} color="#0284c7" />
+                  <span>Current Active Medications</span>
+                </div>
+                <span className="provenance-tag">
+                  <span className="provenance-dot"></span> Patient reported
+                </span>
+              </div>
+
+              {!patient.medications || patient.medications.length === 0 ? (
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '0.5rem 0' }}>
+                  No current medications documented.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {patient.medications.map((m, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '0.65rem 0.85rem',
+                        borderRadius: '8px',
+                        backgroundColor: '#f8fafc',
+                        border: '1px solid var(--border-subtle)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>{m.name}</strong>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                        {m.dosage && <span>{m.dosage}</span>}
+                        {m.frequency && <span>• {m.frequency}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Clinical Notes Card */}
+          <div className="card" style={{ padding: '1.25rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+              <h4 style={{ fontSize: '0.92rem', fontWeight: 600 }}>Clinical Intake Notes</h4>
+              <span className="provenance-tag">
+                <span className="provenance-dot"></span> Patient reported
+              </span>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+              {patient.other_information || 'No additional intake notes provided.'}
+            </p>
+          </div>
+
+          {/* AI Clinical Summary Placeholder (Phase 3 Preparation) */}
+          <div
+            style={{
+              padding: '1.25rem',
+              borderRadius: '12px',
+              backgroundColor: '#f5f3ff',
+              border: '1px solid #ddd6fe',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '0.85rem',
+            }}
+          >
+            <Sparkles size={20} color="#7c3aed" style={{ flexShrink: 0, marginTop: '0.15rem' }} />
+            <div>
+              <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#5b21b6' }}>
+                AI Patient Synthesis Summary (Phase 3 Feature)
+              </div>
+              <p style={{ fontSize: '0.82rem', color: '#6d28d9', margin: '0.25rem 0 0 0', lineHeight: 1.5 }}>
+                In Phase 3, once medical reports (PDF/OCR) are uploaded and processed, MedLens will synthesize scattered clinical records, reconcile lab values, and generate an audited clinical summary with clickable bounding-box provenance.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: REPORTS */}
+      {activeTab === 'reports' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>Clinical Documents & Reports</h3>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                Medical reports, laboratory panels, discharge summaries, and prescriptions for {patient.full_name}
+              </p>
+            </div>
+            <button className="btn btn-primary btn-sm" onClick={() => onOpenUpload(patient)}>
+              <FileUp size={15} /> Upload Report
+            </button>
+          </div>
+
+          {loadingReports ? (
+            <div className="empty-state-box" style={{ padding: '2rem' }}>
+              <RefreshCw size={24} className="animate-spin text-primary" style={{ color: '#0284c7', marginBottom: '0.5rem' }} />
+              <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>Loading patient reports...</div>
+            </div>
+          ) : reports.length === 0 ? (
+            <div className="empty-state-box">
+              <div className="empty-icon-bubble">
+                <FileText size={24} />
+              </div>
+              <div className="empty-title">No Medical Reports Ingested Yet</div>
+              <div className="empty-desc">
+                Upload a CBC panel, metabolic panel, discharge summary, or prescription to execute Phase 3 structured extraction.
+              </div>
+              <button className="btn btn-primary" onClick={() => onOpenUpload(patient)}>
+                <FileUp size={16} /> Upload First Report
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
+              {reports.map((rep) => (
+                <div
+                  key={rep.id}
+                  className="card"
+                  style={{
+                    padding: '1.25rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: '1rem',
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                      <span
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 600,
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: '4px',
+                          backgroundColor: '#f1f5f9',
+                          color: '#475569',
+                          fontFamily: 'var(--font-mono)',
+                        }}
+                      >
+                        {rep.report_type || 'OTHER'}
+                      </span>
+                      <span
+                        className={`status-badge ${
+                          rep.processing_status === 'REVIEW_REQUIRED'
+                            ? 'warning'
+                            : rep.processing_status === 'FAILED'
+                            ? 'danger'
+                            : 'info'
+                        }`}
+                        style={{ fontSize: '0.72rem' }}
+                      >
+                        {rep.processing_status === 'REVIEW_REQUIRED' ? 'Requires Review' : rep.processing_status}
+                      </span>
+                    </div>
+
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>
+                      {rep.original_filename}
+                    </h4>
+
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.2rem', marginTop: '0.5rem' }}>
+                      <div>Uploaded: {new Date(rep.uploaded_at).toLocaleDateString()}</div>
+                      <div>Size: {(rep.file_size / 1024).toFixed(1)} KB ({rep.mime_type})</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        Hash: {rep.document_hash.slice(0, 16)}...
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
 
-      {/* 5. OTHER INFORMATION */}
-      <div className="card section-card" style={{ marginTop: '1.25rem' }} id="section-other-info">
-        <div className="section-card-header">
-          <div className="section-title">
-            <FileText size={18} />
-            <span>Other Relevant Clinical Information</span>
-          </div>
-          <span className="provenance-pill small">USER_PROVIDED</span>
-        </div>
-        <div className="section-card-body">
-          {patient.other_information ? (
-            <p className="clinical-notes-text">{patient.other_information}</p>
-          ) : (
-            <p className="text-muted">No additional intake notes provided.</p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.75rem', borderTop: '1px solid var(--border-subtle)' }}>
+                    <span className="provenance-tag">
+                      <span className="provenance-dot"></span> REPORT_EXTRACTED
+                    </span>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={() => setReviewReportId(rep.id)}
+                    >
+                      Review Extraction
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
-      </div>
+      )}
+
+      {/* TAB 3: LAB RESULTS */}
+      {activeTab === 'labs' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>Structured Laboratory Results</h3>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                Extracted laboratory values with strictly preserved source ranges and provenance
+              </p>
+            </div>
+            <button className="btn btn-secondary btn-sm" onClick={() => onOpenUpload(patient)}>
+              <FileUp size={15} /> Upload Lab Report
+            </button>
+          </div>
+
+          <div
+            style={{
+              padding: '0.85rem 1rem',
+              borderRadius: '8px',
+              backgroundColor: '#f8fafc',
+              border: '1px solid var(--border-subtle)',
+              fontSize: '0.8rem',
+              color: 'var(--text-secondary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+            }}
+          >
+            <ShieldCheck size={16} color="#0284c7" />
+            <span>
+              <strong>Phase 3 Scope:</strong> Laboratory results retain raw values and report-stated reference ranges. Low/Normal/High classification will be evaluated by the deterministic clinical reference engine in Phase 4.
+            </span>
+          </div>
+
+          {loadingReports ? (
+            <div className="empty-state-box" style={{ padding: '2rem' }}>
+              <RefreshCw size={24} className="animate-spin text-primary" style={{ color: '#0284c7', marginBottom: '0.5rem' }} />
+              <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>Loading laboratory extractions...</div>
+            </div>
+          ) : allLabs.length === 0 ? (
+            <div className="empty-state-box">
+              <div className="empty-icon-bubble">
+                <Activity size={24} />
+              </div>
+              <div className="empty-title">No Lab Results Extracted Yet</div>
+              <div className="empty-desc">
+                Upload a blood test, CBC panel, or metabolic report to extract structured laboratory data.
+              </div>
+              <button className="btn btn-primary" onClick={() => onOpenUpload(patient)}>
+                <FileUp size={16} /> Upload Lab Report
+              </button>
+            </div>
+          ) : (
+            <div className="clinical-table-card">
+              <table className="clinical-table">
+                <thead>
+                  <tr>
+                    <th>Test Name</th>
+                    <th>Result</th>
+                    <th>Unit</th>
+                    <th>Reference Range</th>
+                    <th>Source Document</th>
+                    <th>Provenance</th>
+                    <th>Status</th>
+                    <th style={{ textAlign: 'right' }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allLabs.map((lab) => (
+                    <tr key={lab.id}>
+                      <td>
+                        <strong style={{ color: 'var(--text-primary)' }}>{lab.test_name}</strong>
+                        {lab.observation && (
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                            {lab.observation}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                          {lab.verified_value || lab.value_raw}
+                        </span>
+                        {lab.verified_value && lab.verified_value !== lab.value_raw && (
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                            Raw: {lab.value_raw}
+                          </div>
+                        )}
+                      </td>
+                      <td>{lab.unit || '—'}</td>
+                      <td>
+                        {lab.reference_range_raw ? (
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem' }}>
+                            {lab.reference_range_raw}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.78rem' }}>
+                            Not in report
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>
+                          {lab.reportFilename}
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                          Page {lab.source_page || 1}
+                        </div>
+                      </td>
+                      <td>
+                        <span className="provenance-tag">
+                          <span className="provenance-dot"></span> REPORT_EXTRACTED
+                        </span>
+                      </td>
+                      <td>
+                        <span
+                          className={`status-badge ${
+                            lab.verification_status === 'VERIFIED'
+                              ? 'success'
+                              : lab.verification_status === 'REJECTED'
+                              ? 'danger'
+                              : 'neutral'
+                          }`}
+                          style={{ fontSize: '0.72rem' }}
+                        >
+                          {lab.verification_status}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '0.2rem 0.55rem', fontSize: '0.75rem' }}
+                          onClick={() => setReviewReportId(lab.report_id)}
+                        >
+                          Review in Report
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 4: MEDICATIONS */}
+      {activeTab === 'medications' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>Medication Reconciliation</h3>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                Active pharmaceuticals, dosages, schedules, and reconciliation audit
+              </p>
+            </div>
+          </div>
+
+          {!patient.medications || patient.medications.length === 0 ? (
+            <div className="empty-state-box">
+              <div className="empty-icon-bubble">
+                <Pill size={24} />
+              </div>
+              <div className="empty-title">No Active Medications Documented</div>
+              <div className="empty-desc">
+                Document active prescriptions during intake or extract them from physician discharge summaries.
+              </div>
+            </div>
+          ) : (
+            <div className="clinical-table-card">
+              <table className="clinical-table">
+                <thead>
+                  <tr>
+                    <th>Medication Name</th>
+                    <th>Dosage</th>
+                    <th>Frequency</th>
+                    <th>Provenance Source</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {patient.medications.map((med, i) => (
+                    <tr key={i}>
+                      <td>
+                        <strong style={{ color: 'var(--text-primary)' }}>{med.name}</strong>
+                      </td>
+                      <td>{med.dosage || '—'}</td>
+                      <td>{med.frequency || '—'}</td>
+                      <td>
+                        <span className="provenance-tag">
+                          <span className="provenance-dot"></span> Patient reported
+                        </span>
+                      </td>
+                      <td>
+                        <span className="status-badge success">
+                          <CheckCircle2 size={12} /> Active Baseline
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 5: TIMELINE */}
+      {activeTab === 'timeline' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>Clinical Chronology & Encounters</h3>
+          <div
+            style={{
+              padding: '1.5rem',
+              borderRadius: '12px',
+              backgroundColor: '#ffffff',
+              border: '1px solid var(--border-subtle)',
+            }}
+          >
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#0284c7' }}></div>
+                <div style={{ width: '2px', flex: 1, backgroundColor: '#e2e8f0', margin: '0.25rem 0' }}></div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  Baseline Clinical Intake Registered
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  {new Date(patient.created_at).toLocaleString()} • Logged by Clinician
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+                  Documented baseline demographics, presenting complaints, and active medications.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clinician Extraction Review Modal (Phase 3) */}
+      {reviewReportId && (
+        <ExtractionReviewModal
+          reportId={reviewReportId}
+          isOpen={!!reviewReportId}
+          onClose={() => setReviewReportId(null)}
+          onUpdate={() => {
+            loadPatient();
+            loadReports(patient.id);
+          }}
+        />
+      )}
     </div>
   );
 }
