@@ -6,10 +6,8 @@ Create Date: 2026-09-05 14:04:22.681216
 
 """
 from typing import Sequence, Union
-
 from alembic import op
 import sqlalchemy as sa
-
 
 # revision identifiers, used by Alembic.
 revision: str = '88db2bc07b75'
@@ -19,66 +17,104 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Upgrade schema using SQLite batch mode with backfilling."""
+    """Upgrade schema deterministically via standard SQLite table replacement."""
     conn = op.get_bind()
 
-    # Step 1: Add new columns as nullable to allow data backfilling
-    with op.batch_alter_table('patients', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('patient_identifier', sa.String(length=64), nullable=True))
-        batch_op.add_column(sa.Column('full_name', sa.String(length=255), nullable=True))
-        batch_op.add_column(sa.Column('date_of_birth', sa.Date(), nullable=True))
-        batch_op.add_column(sa.Column('sex', sa.String(length=50), nullable=True))
-        batch_op.add_column(sa.Column('symptoms', sa.JSON(), nullable=True))
-        batch_op.add_column(sa.Column('existing_conditions', sa.JSON(), nullable=True))
-        batch_op.add_column(sa.Column('allergies', sa.JSON(), nullable=True))
-        batch_op.add_column(sa.Column('medications', sa.JSON(), nullable=True))
-        batch_op.add_column(sa.Column('other_information', sa.Text(), nullable=True))
-        batch_op.add_column(sa.Column('provenance_tag', sa.String(length=50), nullable=True))
+    # 1. Ensure temp table does not exist
+    conn.execute(sa.text("DROP TABLE IF EXISTS _patients_old"))
+    conn.execute(sa.text("DROP TABLE IF EXISTS patients_new"))
+    conn.execute(sa.text("DROP TABLE IF EXISTS _alembic_tmp_patients"))
 
-    # Step 2: Backfill existing rows with unique identifiers and migrate name/gender
-    conn.execute(sa.text("UPDATE patients SET patient_identifier = 'PAT-MIGRATED-' || id WHERE patient_identifier IS NULL"))
-    conn.execute(sa.text("UPDATE patients SET full_name = name WHERE full_name IS NULL AND name IS NOT NULL"))
-    conn.execute(sa.text("UPDATE patients SET sex = UPPER(gender) WHERE sex IS NULL AND gender IS NOT NULL"))
-    conn.execute(sa.text("UPDATE patients SET symptoms = '[]' WHERE symptoms IS NULL"))
-    conn.execute(sa.text("UPDATE patients SET existing_conditions = '[]' WHERE existing_conditions IS NULL"))
-    conn.execute(sa.text("UPDATE patients SET allergies = '[]' WHERE allergies IS NULL"))
-    conn.execute(sa.text("UPDATE patients SET medications = '[]' WHERE medications IS NULL"))
-    conn.execute(sa.text("UPDATE patients SET provenance_tag = 'USER_PROVIDED' WHERE provenance_tag IS NULL"))
+    # 2. Create the target patients_new table
+    conn.execute(sa.text("""
+        CREATE TABLE patients_new (
+            id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+            patient_identifier VARCHAR(64) NOT NULL,
+            full_name VARCHAR(255) NOT NULL,
+            date_of_birth DATE,
+            age INTEGER,
+            sex VARCHAR(50),
+            symptoms JSON NOT NULL DEFAULT '[]',
+            existing_conditions JSON NOT NULL DEFAULT '[]',
+            allergies JSON NOT NULL DEFAULT '[]',
+            medications JSON NOT NULL DEFAULT '[]',
+            other_information TEXT,
+            provenance_tag VARCHAR(50) NOT NULL DEFAULT 'USER_PROVIDED',
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL
+        )
+    """))
 
-    # Step 3: Finalize table structure: drop legacy columns, set non-nullable, and add unique index
-    with op.batch_alter_table('patients', schema=None) as batch_op:
-        batch_op.alter_column('patient_identifier', nullable=False)
-        batch_op.alter_column('full_name', nullable=False)
-        batch_op.alter_column('symptoms', nullable=False)
-        batch_op.alter_column('existing_conditions', nullable=False)
-        batch_op.alter_column('allergies', nullable=False)
-        batch_op.alter_column('medications', nullable=False)
-        batch_op.alter_column('provenance_tag', nullable=False)
+    # 3. Check existing columns in current patients table to copy data safely
+    res = conn.execute(sa.text("PRAGMA table_info(patients)")).fetchall()
+    existing_cols = {row[1] for row in res}
 
-        batch_op.create_index(batch_op.f('ix_patients_full_name'), ['full_name'], unique=False)
-        batch_op.create_index(batch_op.f('ix_patients_patient_identifier'), ['patient_identifier'], unique=True)
-        
-        batch_op.drop_column('name')
-        batch_op.drop_column('gender')
+    name_expr = "name" if "name" in existing_cols else "full_name"
+    gender_expr = "gender" if "gender" in existing_cols else "sex"
+    
+    conn.execute(sa.text(f"""
+        INSERT INTO patients_new (
+            id,
+            patient_identifier,
+            full_name,
+            date_of_birth,
+            age,
+            sex,
+            symptoms,
+            existing_conditions,
+            allergies,
+            medications,
+            other_information,
+            provenance_tag,
+            created_at,
+            updated_at
+        )
+        SELECT
+            id,
+            'PAT-MIGRATED-' || id,
+            COALESCE({name_expr}, 'Unknown'),
+            NULL,
+            age,
+            UPPER(COALESCE({gender_expr}, 'UNKNOWN')),
+            '[]',
+            '[]',
+            '[]',
+            '[]',
+            NULL,
+            'USER_PROVIDED',
+            created_at,
+            updated_at
+        FROM patients
+    """))
+
+    # 4. Swap tables
+    conn.execute(sa.text("DROP TABLE patients"))
+    conn.execute(sa.text("ALTER TABLE patients_new RENAME TO patients"))
+
+    # 5. Create indices
+    conn.execute(sa.text("CREATE INDEX ix_patients_id ON patients (id)"))
+    conn.execute(sa.text("CREATE INDEX ix_patients_full_name ON patients (full_name)"))
+    conn.execute(sa.text("CREATE UNIQUE INDEX ix_patients_patient_identifier ON patients (patient_identifier)"))
 
 
 def downgrade() -> None:
-    """Downgrade schema using SQLite batch mode."""
-    with op.batch_alter_table('patients', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('gender', sa.VARCHAR(length=50), nullable=True))
-        batch_op.add_column(sa.Column('name', sa.VARCHAR(length=255), nullable=False, server_default='Unknown'))
-        batch_op.create_index('ix_patients_name', ['name'], unique=False)
-        
-        batch_op.drop_index(batch_op.f('ix_patients_patient_identifier'))
-        batch_op.drop_index(batch_op.f('ix_patients_full_name'))
-        
-        batch_op.drop_column('provenance_tag')
-        batch_op.drop_column('other_information')
-        batch_op.drop_column('medications')
-        batch_op.drop_column('allergies')
-        batch_op.drop_column('existing_conditions')
-        batch_op.drop_column('symptoms')
-        batch_op.drop_column('sex')
-        batch_op.drop_column('date_of_birth')
-        batch_op.drop_column('full_name')
-        batch_op.drop_column('patient_identifier')
+    """Downgrade schema back to Phase 1."""
+    conn = op.get_bind()
+    conn.execute(sa.text("""
+        CREATE TABLE patients_old (
+            id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+            name VARCHAR(255) NOT NULL,
+            age INTEGER,
+            gender VARCHAR(50),
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL
+        )
+    """))
+    conn.execute(sa.text("""
+        INSERT INTO patients_old (id, name, age, gender, created_at, updated_at)
+        SELECT id, full_name, age, sex, created_at, updated_at FROM patients
+    """))
+    conn.execute(sa.text("DROP TABLE patients"))
+    conn.execute(sa.text("ALTER TABLE patients_old RENAME TO patients"))
+    conn.execute(sa.text("CREATE INDEX ix_patients_id ON patients (id)"))
+    conn.execute(sa.text("CREATE INDEX ix_patients_name ON patients (name)"))
