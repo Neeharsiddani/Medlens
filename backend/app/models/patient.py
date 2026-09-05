@@ -1,17 +1,36 @@
-"""Minimal patient model to establish the database schema foundation."""
+"""Patient SQLAlchemy model with structured clinical intake attributes."""
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, Date, Text, DateTime, JSON
 from app.db.base import Base
 
 
 class Patient(Base):
-    """Patient entity foundation."""
+    """Patient entity representing clinical demographic and intake records."""
     __tablename__ = "patients"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    name = Column(String(255), nullable=False, index=True)
+    
+    # Unique clinical identifier (e.g. MRN, PAT-2026-0001)
+    patient_identifier = Column(String(64), unique=True, index=True, nullable=False)
+    
+    # Demographics
+    full_name = Column(String(255), nullable=False, index=True)
+    date_of_birth = Column(Date, nullable=True)
     age = Column(Integer, nullable=True)
-    gender = Column(String(50), nullable=True)
+    sex = Column(String(50), nullable=True)  # MALE, FEMALE, OTHER, UNKNOWN
+    
+    # Structured clinical intake items (stored as typed JSON lists)
+    symptoms = Column(JSON, nullable=False, default=list)
+    existing_conditions = Column(JSON, nullable=False, default=list)
+    allergies = Column(JSON, nullable=False, default=list)
+    medications = Column(JSON, nullable=False, default=list)
+    
+    # Additional unstructured notes / context
+    other_information = Column(Text, nullable=True)
+    
+    # Provenance semantics (distinguishes USER_PROVIDED from future REPORT_EXTRACTED)
+    provenance_tag = Column(String(50), nullable=False, default="USER_PROVIDED")
+    
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(
         DateTime,
@@ -19,3 +38,20 @@ class Patient(Base):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+
+    # Compatibility aliases for Phase 1 code
+    @property
+    def name(self) -> str:
+        return self.full_name
+
+    @name.setter
+    def name(self, value: str):
+        self.full_name = value
+
+    @property
+    def gender(self) -> str:
+        return self.sex
+
+    @gender.setter
+    def gender(self, value: str):
+        self.sex = value
