@@ -144,7 +144,7 @@ export default function DashboardOverview({
             <span>•</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
               <Activity size={14} />
-              <strong>{labsSummary.total}</strong> Extracted Lab Result{labsSummary.total === 1 ? '' : 's'}
+              <strong>{stats.total_labs}</strong> Extracted Lab Result{stats.total_labs === 1 ? '' : 's'}
             </span>
           </div>
         </div>
