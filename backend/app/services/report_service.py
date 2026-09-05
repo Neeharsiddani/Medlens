@@ -14,6 +14,7 @@ from app.schemas.report import (
 )
 from app.services.document_service import DocumentService
 from app.services.gemini_service import GeminiExtractionService
+from app.services.reference_range_engine import ReferenceRangeEngine
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +153,17 @@ class ReportService:
 
         # 3. Insert Laboratory Results
         for lab in extraction.laboratory_results:
+            # Deterministic reference range evaluation (Phase 4 - Zero AI)
+            classification = ReferenceRangeEngine.classify(
+                value_raw=lab.value_raw,
+                value_numeric=lab.value_numeric,
+                unit=lab.unit,
+                reference_range_raw=lab.reference_range_raw,
+                reference_low=lab.reference_low,
+                reference_high=lab.reference_high,
+                reference_unit=lab.reference_unit,
+            )
+
             db_lab = LabResult(
                 report_id=report.id,
                 patient_id=report.patient_id,
@@ -169,6 +181,9 @@ class ReportService:
                 source_text=lab.source_text,
                 provenance_tag="REPORT_EXTRACTED",
                 verification_status="UNVERIFIED",
+                reference_range_status=classification.status.value,
+                verified_classification=None,
+                classification_reason=classification.reason,
             )
             db.add(db_lab)
 
@@ -281,6 +296,22 @@ class ReportService:
         result.verification_status = status_val
         if update_data.verified_value is not None:
             result.verified_value = update_data.verified_value
+            # Deterministically calculate separate verified classification (Phase 4)
+            verified_numeric = ReferenceRangeEngine.parse_numeric_value(update_data.verified_value, None)
+            verified_eval = ReferenceRangeEngine.classify(
+                value_raw=update_data.verified_value,
+                value_numeric=verified_numeric,
+                unit=result.unit,
+                reference_range_raw=result.reference_range_raw,
+                reference_low=result.reference_low,
+                reference_high=result.reference_high,
+                reference_unit=result.reference_unit,
+            )
+            result.verified_classification = verified_eval.status.value
+        elif status_val == "VERIFIED" and result.verified_classification is None:
+            # Verified with original value untouched -> verified classification mirrors original status
+            result.verified_classification = result.reference_range_status
+
         result.verified_by = update_data.verified_by
         result.verification_notes = update_data.verification_notes
         result.verified_at = datetime.now(timezone.utc)

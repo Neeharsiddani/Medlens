@@ -1,7 +1,7 @@
 """Pydantic v2 schemas for Phase 3 Medical Report Processing & Structured Extraction."""
 from datetime import date, datetime
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 from app.schemas.common import BaseSchema
 
 
@@ -29,6 +29,7 @@ class ExtractedLabResult(BaseModel):
     source_text: Optional[str] = Field(None, description="Exact line or text snippet where test appears")
     provenance_tag: str = Field("REPORT_EXTRACTED", description="Always REPORT_EXTRACTED")
     verification_status: str = Field("UNVERIFIED", description="Always UNVERIFIED initially")
+    reference_range_status: str = Field("UNDETERMINED", description="Deterministic classification: LOW, NORMAL, HIGH, NO_RANGE_AVAILABLE, UNDETERMINED")
 
 
 class ExtractedObservation(BaseModel):
@@ -108,8 +109,16 @@ class LabResultResponse(BaseSchema):
     verified_by: Optional[str] = None
     verified_at: Optional[datetime] = None
     verification_notes: Optional[str] = None
+    reference_range_status: str = "UNDETERMINED"
+    verified_classification: Optional[str] = None
+    classification_reason: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+
+    @computed_field
+    @property
+    def current_classification(self) -> str:
+        return self.verified_classification or self.reference_range_status
 
 
 class ReportObservationResponse(BaseSchema):

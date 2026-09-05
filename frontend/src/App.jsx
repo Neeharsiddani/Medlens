@@ -367,7 +367,25 @@ export default function App() {
         onClose={() => setIsUploadModalOpen(false)}
         patients={patients}
         preselectedPatient={uploadPreselectedPatient}
+        onSuccess={(createdReport) => {
+          if (createdReport && createdReport.id) {
+            setGlobalReviewReportId(createdReport.id);
+          }
+          loadPatientList();
+        }}
       />
+
+      {/* Global Extraction Review Modal */}
+      {globalReviewReportId && (
+        <ExtractionReviewModal
+          reportId={globalReviewReportId}
+          isOpen={!!globalReviewReportId}
+          onClose={() => setGlobalReviewReportId(null)}
+          onUpdate={() => {
+            loadPatientList();
+          }}
+        />
+      )}
 
       {/* Developer Telemetry Dialog (Demoted from primary view) */}
       {isTelemetryModalOpen && (

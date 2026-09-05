@@ -70,6 +70,22 @@ export default function ExtractionReviewModal({ reportId, isOpen, onClose, onUpd
     }
   }, [isOpen, reportId]);
 
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'LOW':
+        return { className: 'status-badge low', label: 'LOW' };
+      case 'NORMAL':
+        return { className: 'status-badge normal', label: 'NORMAL' };
+      case 'HIGH':
+        return { className: 'status-badge high', label: 'HIGH' };
+      case 'NO_RANGE_AVAILABLE':
+        return { className: 'status-badge no-range', label: 'NO RANGE' };
+      case 'UNDETERMINED':
+      default:
+        return { className: 'status-badge undetermined', label: 'UNDETERMINED' };
+    }
+  };
+
   const handleVerifyLab = async (labId, newStatus, customValue = null) => {
     setVerifying(true);
     try {
@@ -367,11 +383,12 @@ export default function ExtractionReviewModal({ reportId, isOpen, onClose, onUpd
                       <thead>
                         <tr>
                           <th>Test Name</th>
-                          <th>Raw Result</th>
+                          <th>Value</th>
                           <th>Unit</th>
                           <th>Reference Range</th>
+                          <th>Range Status</th>
                           <th>Source Traceability</th>
-                          <th>Status</th>
+                          <th>Verification</th>
                           <th style={{ textAlign: 'right' }}>Review Actions</th>
                         </tr>
                       </thead>
@@ -422,6 +439,21 @@ export default function ExtractionReviewModal({ reportId, isOpen, onClose, onUpd
                                     Not in source report
                                   </span>
                                 )}
+                              </td>
+                              <td>
+                                {(() => {
+                                  const activeClass = lab.current_classification || lab.reference_range_status || 'UNDETERMINED';
+                                  const badge = getStatusBadge(activeClass);
+                                  return (
+                                    <span
+                                      className={badge.className}
+                                      style={{ fontSize: '0.72rem', cursor: 'help' }}
+                                      title={lab.classification_reason || `Classification: ${badge.label}`}
+                                    >
+                                      {badge.label}
+                                    </span>
+                                  );
+                                })()}
                               </td>
                               <td>
                                 <button
@@ -711,6 +743,29 @@ export default function ExtractionReviewModal({ reportId, isOpen, onClose, onUpd
               <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
                 Target Entity: <strong>{sourceItem.test_name || sourceItem.medication_name || sourceItem.description}</strong>
               </div>
+
+              {sourceItem.type === 'LAB_RESULT' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', padding: '0.85rem', backgroundColor: '#f8fafc', border: '1px solid var(--border-subtle)', borderRadius: '8px', fontSize: '0.82rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Reported Value: <strong>{sourceItem.verified_value || sourceItem.value_raw} {sourceItem.unit || ''}</strong></span>
+                    <span>Source Range: <strong>{sourceItem.reference_range_raw || 'None provided'}</strong></span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Deterministic Status:</span>
+                    <span className={getStatusBadge(sourceItem.current_classification || sourceItem.reference_range_status || 'UNDETERMINED').className}>
+                      {getStatusBadge(sourceItem.current_classification || sourceItem.reference_range_status || 'UNDETERMINED').label}
+                    </span>
+                  </div>
+                  {sourceItem.classification_reason && (
+                    <div style={{ fontSize: '0.78rem', color: '#0369a1', marginTop: '0.2rem' }}>
+                      {sourceItem.classification_reason}
+                    </div>
+                  )}
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '0.25rem' }}>
+                    MedLens evaluates status strictly against the reference interval provided in the source report. Not a diagnosis.
+                  </div>
+                </div>
+              )}
 
               <div
                 style={{

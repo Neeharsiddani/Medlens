@@ -104,6 +104,12 @@ class LabResult(Base):
     verified_at = Column(DateTime, nullable=True)
     verification_notes = Column(Text, nullable=True)
 
+    # Deterministic Reference-Range Awareness (Phase 4)
+    # Statuses: LOW, NORMAL, HIGH, NO_RANGE_AVAILABLE, UNDETERMINED
+    reference_range_status = Column(String(50), nullable=False, default="UNDETERMINED", index=True)
+    verified_classification = Column(String(50), nullable=True)
+    classification_reason = Column(Text, nullable=True)
+
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(
         DateTime,

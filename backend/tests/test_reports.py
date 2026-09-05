@@ -236,19 +236,21 @@ def test_missing_reference_range_remains_null(sample_patient):
     labs = data["lab_results"]
     assert len(labs) == 2
 
-    # Glucose has NULL reference ranges
+    # Glucose has NULL reference ranges -> deterministic NO_RANGE_AVAILABLE
     glucose = next(l for l in labs if l["test_name"] == "Blood Glucose")
     assert glucose["reference_range_raw"] is None
     assert glucose["reference_low"] is None
     assert glucose["reference_high"] is None
+    assert glucose["reference_range_status"] == "NO_RANGE_AVAILABLE"
     assert glucose["provenance_tag"] == "REPORT_EXTRACTED"
     assert glucose["verification_status"] == "UNVERIFIED"
 
-    # COVID test has exact non-numeric range preserved
+    # COVID test has exact non-numeric range preserved -> UNDETERMINED
     covid = next(l for l in labs if l["test_name"] == "COVID-19 Antigen")
     assert covid["reference_range_raw"] == "Negative"
     assert covid["reference_low"] is None
     assert covid["reference_high"] is None
+    assert covid["reference_range_status"] == "UNDETERMINED"
     assert covid["provenance_tag"] == "REPORT_EXTRACTED"
     assert covid["verification_status"] == "UNVERIFIED"
 
@@ -371,10 +373,12 @@ def test_clinician_verification_workflow(sample_patient):
     report_data = upload_res.json()
     report_id = report_data["id"]
     result_id = report_data["lab_results"][0]["id"]
-
-    # Initial state: UNVERIFIED
+    # Initial state: UNVERIFIED, reference_range_status HIGH (5.8 on 3.5 - 5.0)
     assert report_data["lab_results"][0]["verification_status"] == "UNVERIFIED"
     assert report_data["lab_results"][0]["value_raw"] == "5.8"
+    assert report_data["lab_results"][0]["reference_range_status"] == "HIGH"
+    assert report_data["lab_results"][0]["verified_classification"] is None
+    assert report_data["lab_results"][0]["current_classification"] == "HIGH"
 
     # Clinician verifies with a corrected value "5.7"
     verify_res = client.patch(
@@ -394,4 +398,9 @@ def test_clinician_verification_workflow(sample_patient):
     assert verify_data["verified_by"] == "Dr. House"
     # CRITICAL: value_raw MUST remain original "5.8"
     assert verify_data["value_raw"] == "5.8"
+    # CRITICAL: original reference_range_status MUST remain "HIGH"
+    assert verify_data["reference_range_status"] == "HIGH"
+    # Verified classification is evaluated on 5.7 (also HIGH on 3.5-5.0)
+    assert verify_data["verified_classification"] == "HIGH"
+    assert verify_data["current_classification"] == "HIGH"
     assert verify_data["provenance_tag"] == "REPORT_EXTRACTED"

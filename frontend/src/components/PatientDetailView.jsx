@@ -18,6 +18,7 @@ import {
   Sparkles,
   Info,
   CheckCircle2,
+} from 'lucide-react';
 import { getPatientById, deletePatient } from '../api/patients';
 import { listPatientReports, getReportExtraction } from '../api/reports';
 import ExtractionReviewModal from './ExtractionReviewModal';
