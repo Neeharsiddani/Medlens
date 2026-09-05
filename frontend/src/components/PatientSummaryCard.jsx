@@ -123,7 +123,7 @@ export default function PatientSummaryCard({ patientId, patient, onSummaryUpdate
                   title={summary.provenance_tag === 'AI_GENERATED' ? 'Grounded exclusively in structured MedLens record' : 'System generated summary'}
                 >
                   <span className="provenance-dot" style={{ backgroundColor: summary.provenance_tag === 'AI_GENERATED' ? '#7c3aed' : '#64748b' }}></span>
-                  {summary.provenance_tag}
+                  {summary.provenance_tag === 'AI_GENERATED' ? 'AI Generated Summary' : summary.provenance_tag}
                 </span>
               )}
             </div>

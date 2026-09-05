@@ -11,6 +11,11 @@ import ExtractionReviewModal from './components/ExtractionReviewModal';
 import ReportsView from './components/views/ReportsView';
 import LabResultsView from './components/views/LabResultsView';
 import PatientSummaryCard from './components/PatientSummaryCard';
+import PatientOverviewTab from './components/patient/PatientOverviewTab';
+import PatientReportsTab from './components/patient/PatientReportsTab';
+import PatientLabsTab from './components/patient/PatientLabsTab';
+import PatientMedicationsTab from './components/patient/PatientMedicationsTab';
+import PatientTimelineTab from './components/patient/PatientTimelineTab';
 
 describe('App component render', () => {
   it('imports App successfully without throwing', () => {
@@ -121,6 +126,55 @@ describe('App component render', () => {
       />
     );
     expect(html).toBeDefined();
+  });
+
+  it('renders PatientOverviewTab without throwing', () => {
+    const html = renderToString(
+      <PatientOverviewTab
+        patient={{ id: 1, full_name: 'Test Patient', symptoms: [], existing_conditions: [], allergies: [], medications: [] }}
+      />
+    );
+    expect(html).toContain('Complaints');
+  });
+
+  it('renders PatientReportsTab without throwing', () => {
+    const html = renderToString(
+      <PatientReportsTab
+        patient={{ id: 1, full_name: 'Test Patient' }}
+        reports={[]}
+        loadingReports={false}
+      />
+    );
+    expect(html).toContain('Clinical Documents');
+  });
+
+  it('renders PatientLabsTab without throwing', () => {
+    const html = renderToString(
+      <PatientLabsTab
+        patient={{ id: 1, full_name: 'Test Patient' }}
+        allLabs={[]}
+        loadingReports={false}
+      />
+    );
+    expect(html).toContain('Structured Laboratory Results');
+  });
+
+  it('renders PatientMedicationsTab without throwing', () => {
+    const html = renderToString(
+      <PatientMedicationsTab
+        patient={{ id: 1, medications: [] }}
+      />
+    );
+    expect(html).toContain('Active Medications');
+  });
+
+  it('renders PatientTimelineTab without throwing', () => {
+    const html = renderToString(
+      <PatientTimelineTab
+        timelineEvents={[]}
+      />
+    );
+    expect(html).toContain('Clinical Chronology');
   });
 });
 
