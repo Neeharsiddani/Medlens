@@ -63,7 +63,7 @@ MedLens synthesizes and audits scattered medical records, multi-page laboratory 
 Medlens/
 ├── backend/
 │   ├── alembic/                  # Database migration versions
-│   │   └── versions/             # Migration history through c72d9e1f5a3b
+│   │   └── versions/             # Migration history through 10fcbc0fe35c
 │   ├── app/
 │   │   ├── api/v1/endpoints/     # Health, Patients, Reports, Summaries
 │   │   ├── core/                 # Centralized settings & Pydantic config
@@ -71,8 +71,8 @@ Medlens/
 │   │   ├── models/               # Patient, MedicalReport, LabResult, Summary
 │   │   ├── schemas/              # Pydantic validation schemas
 │   │   ├── services/             # Patient, Document, Gemini, Reference Range, Summary
-│   │   └── main.py               # FastAPI entrypoint, CORS, global handlers
-│   ├── tests/                    # 60 automated unit & integration tests
+│   │   └── main.py               # FastAPI entrypoint, OWASP headers, CORS, handlers
+│   ├── tests/                    # 63 automated unit & integration tests
 │   ├── medlens.db                # SQLite database (clean, 0 production rows)
 │   ├── requirements.txt          # Python dependencies
 │   └── .env.example              # Template environment configuration
@@ -80,11 +80,12 @@ Medlens/
 │   ├── src/
 │   │   ├── api/                  # API client & resource endpoints
 │   │   ├── components/           # Clinical UI components & review modals
+│   │   ├── utils/                # Status badges & Vitest unit tests
 │   │   ├── App.jsx               # Primary application shell & navigation
-│   │   └── index.css             # Vanilla CSS design system
+│   │   └── index.css             # Vanilla CSS design system & print styles
 │   ├── public/                   # Static assets & clinical favicon
 │   ├── vite.config.js            # Vite configuration (port 5173, GitHub Pages base)
-│   └── package.json              # Frontend dependencies
+│   └── package.json              # Frontend dependencies (React 18, Vitest)
 ├── .github/workflows/
 │   └── deploy.yml                # GitHub Pages deployment workflow
 ├── docs/
@@ -159,7 +160,8 @@ The frontend application will be live at `http://localhost:5173`.
 
 ## Running Automated Tests
 
-All 62 automated tests run in complete isolation against a temporary database and upload directory, guaranteeing zero side-effects on production databases:
+### 1. Backend Automated Tests (Pytest)
+All 63 automated tests run in complete isolation against a temporary database and upload directory, guaranteeing zero side-effects on production databases:
 
 ```powershell
 cd backend
@@ -173,6 +175,27 @@ Test coverage includes:
 - Deterministic local text extraction and attribution
 - Deterministic reference-range rule engine (boundary cases, unit mismatches, one-sided bounds)
 - Human clinician verification workflow and `USER_VERIFIED` provenance
+- Negative tests for mismatched report IDs and invalid lab results
 - AI summary generation, Pydantic validation, and Gemini unavailable states
 - Summary staleness detection across all 7 clinical mutation categories
 - Test mock isolation (zero mock leaks in production paths)
+
+### 2. Frontend Automated Tests (Vitest)
+Unit tests for deterministic badge mappings, status classifications, and extraction attributions:
+
+```powershell
+cd frontend
+npm test
+```
+
+---
+
+## Architectural Scope & Non-Claims
+
+To maintain honest, transparent clinical claims, MedLens explicitly documents the exact boundaries of key capabilities:
+
+1. **Conflict Detection**: Refers strictly to cryptographic file deduplication (SHA-256) and database Patient Identifier (MRN) collision prevention (HTTP 409 Conflict). It does **not** claim automated pharmacological or drug-drug interaction conflict detection.
+2. **Access Control**: MedLens is designed as a single-clinician / local workstation clinical intelligence application. It does **not** claim multi-tenant enterprise Role-Based Access Control (RBAC) or enterprise authentication; `verified_by` and audit records strictly record real clinician identities and never simulate authentication.
+3. **Confidence Scoring**: MedLens relies on strict deterministic schema validation, Pydantic type bounds, and Python rule evaluation, rather than arbitrary, uncalibrated probabilistic "confidence scores".
+4. **Report Comparison & Aggregation**: Multi-report handling aggregates and tracks longitudinal laboratory trends and chronological audit events across multiple ingested documents for a patient chart. It does **not** claim an automated semantic PDF diffing/comparison engine.
+5. **Print & Export Scope**: The "Print / Export Summary" action triggers browser-native printing formatted via dedicated `@media print` CSS. It is **not** a server-side PDF generator.

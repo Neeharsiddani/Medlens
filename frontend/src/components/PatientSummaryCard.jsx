@@ -8,7 +8,8 @@ import {
   AlertTriangle,
   Info,
   Shield,
-  FileText
+  FileText,
+  Printer,
 } from 'lucide-react';
 import { getPatientSummary, generatePatientSummary } from '../api/summaries';
 
@@ -134,16 +135,28 @@ export default function PatientSummaryCard({ patientId, patient, onSummaryUpdate
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
           {summary && (
-            <button
-              id="regenerate-summary-btn"
-              className="btn btn-secondary btn-sm"
-              disabled={generating || loading}
-              onClick={handleGenerate}
-              style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-            >
-              <RefreshCw size={13} className={generating ? 'animate-spin' : ''} />
-              {generating ? 'Regenerating...' : 'Regenerate Summary'}
-            </button>
+            <>
+              <button
+                id="print-summary-card-btn"
+                className="btn btn-secondary btn-sm"
+                onClick={() => window.print()}
+                title="Print or export patient summary using browser-native print"
+                style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+              >
+                <Printer size={13} />
+                Print / Export Summary
+              </button>
+              <button
+                id="regenerate-summary-btn"
+                className="btn btn-secondary btn-sm"
+                disabled={generating || loading}
+                onClick={handleGenerate}
+                style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+              >
+                <RefreshCw size={13} className={generating ? 'animate-spin' : ''} />
+                {generating ? 'Regenerating...' : 'Regenerate Summary'}
+              </button>
+            </>
           )}
         </div>
       </div>

@@ -18,6 +18,7 @@ import {
   Sparkles,
   Info,
   CheckCircle2,
+  Printer,
 } from 'lucide-react';
 import { getPatientById, deletePatient } from '../api/patients';
 import { listPatientReports, getReportExtraction } from '../api/reports';
@@ -193,6 +194,14 @@ export default function PatientDetailView({ patientId, onBack, onEdit, onOpenUpl
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <button
+            id="print-summary-btn"
+            className="btn btn-secondary btn-sm"
+            onClick={() => window.print()}
+            title="Print or export patient summary using browser-native print"
+          >
+            <Printer size={15} /> Print / Export Summary
+          </button>
           <button className="btn btn-secondary btn-sm" onClick={() => onOpenUpload(patient)}>
             <FileUp size={15} /> Upload Report
           </button>

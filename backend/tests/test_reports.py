@@ -598,3 +598,69 @@ def test_global_reports_and_labs_endpoints():
     assert "total" in lab_data
     assert "labs" in lab_data
     assert isinstance(lab_data["labs"], list)
+
+
+def test_verify_lab_result_mismatched_report_id_returns_404(sample_patient):
+    """Ensure verifying a lab result against a mismatched or non-existent report_id returns HTTP 404."""
+    # 1. Non-existent report and result
+    res = client.patch(
+        "/api/v1/reports/999999/lab-results/999999/verify",
+        json={"verification_status": "VERIFIED", "verified_value": "15.0"},
+    )
+    assert res.status_code == 404
+    assert "not found" in res.json()["detail"].lower()
+
+    # 2. Existing report A with lab result, and separate existing report B
+    db = SessionLocal()
+    rep_a = MedicalReport(
+        patient_id=sample_patient,
+        original_filename="report_a.pdf",
+        stored_filename="mock_a.pdf",
+        storage_path="uploads/mock_a.pdf",
+        document_hash="hash_a_1234567890123456789012345678901234567890123456789012345678901234",
+        file_size=1024,
+        mime_type="application/pdf",
+        provenance_tag="REPORT_EXTRACTED",
+    )
+    rep_b = MedicalReport(
+        patient_id=sample_patient,
+        original_filename="report_b.pdf",
+        stored_filename="mock_b.pdf",
+        storage_path="uploads/mock_b.pdf",
+        document_hash="hash_b_1234567890123456789012345678901234567890123456789012345678901234",
+        file_size=1024,
+        mime_type="application/pdf",
+        provenance_tag="REPORT_EXTRACTED",
+    )
+    db.add_all([rep_a, rep_b])
+    db.commit()
+    db.refresh(rep_a)
+    db.refresh(rep_b)
+
+    lab_a = LabResult(
+        report_id=rep_a.id,
+        patient_id=sample_patient,
+        test_name="Hemoglobin",
+        value_raw="14.2",
+        unit="g/dL",
+        provenance_tag="REPORT_EXTRACTED",
+        verification_status="UNVERIFIED",
+    )
+    db.add(lab_a)
+    db.commit()
+    db.refresh(lab_a)
+
+    rep_a_id = rep_a.id
+    rep_b_id = rep_b.id
+    lab_a_id = lab_a.id
+    db.close()
+
+    # Attempt to verify lab_a under rep_b -> must return 404
+    res_mismatch = client.patch(
+        f"/api/v1/reports/{rep_b_id}/lab-results/{lab_a_id}/verify",
+        json={"verification_status": "VERIFIED", "verified_value": "14.5"},
+    )
+    assert res_mismatch.status_code == 404
+    detail = res_mismatch.json()["detail"]
+    assert f"not found on report {rep_b_id}" in detail
+
